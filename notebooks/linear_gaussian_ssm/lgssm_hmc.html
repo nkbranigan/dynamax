@@ -1,0 +1,957 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Bayesian parameter estimation for an LG-SSM using HMC</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'notebooks/linear_gaussian_ssm/lgssm_hmc';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Tracking a spiraling object using the extended / unscented Kalman filter" href="../nonlinear_gaussian_ssm/ekf_ukf_spiral.html" />
+    <link rel="prev" title="MAP parameter estimation for an LG-SSM using EM and SGD" href="lgssm_learning.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.gif" class="logo__image only-light" alt=" - Home"/>
+    <img src="../../_static/logo.gif" class="logo__image only-dark pst-js-only" alt=" - Home"/>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">HMMs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../hmm/casino_hmm_inference.html">Casino HMM: Inference (state estimation)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hmm/casino_hmm_learning.html">Casino HMM: Learning (parameter estimation)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hmm/gaussian_hmm.html">Gaussian HMM: Cross-validation and Model Selection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hmm/autoregressive_hmm.html">Autoregressive (AR) HMM Demo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../hmm/custom_hmm.html">Creating Custom HMMs</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Linear Gaussian SSMs</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="kf_tracking.html">Tracking an object using the Kalman filter</a></li>
+<li class="toctree-l1"><a class="reference internal" href="kf_linreg.html">Online linear regression using Kalman filtering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lgssm_parallel_inference.html">Parallel filtering and smoothing in an LG-SSM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lgssm_learning.html">MAP parameter estimation for an LG-SSM using EM and SGD</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Bayesian parameter estimation for an LG-SSM using HMC</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Nonlinear Gaussian SSMs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../nonlinear_gaussian_ssm/ekf_ukf_spiral.html">Tracking a spiraling object using the extended / unscented Kalman filter</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nonlinear_gaussian_ssm/ekf_ukf_pendulum.html">Tracking a 1d pendulum using Extended / Unscented Kalman filter/ smoother</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nonlinear_gaussian_ssm/ekf_mlp.html">Online learning for an MLP using extended Kalman filtering</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Generalized Gaussian SSMs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../generalized_gaussian_ssm/cmgf_logistic_regression_demo.html">Online Logistic Regression using conditional moments Gaussian filter</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../generalized_gaussian_ssm/cmgf_mlp_classification_demo.html">Online learning of an MLP Classifier using conditional moments Gaussian filter</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../generalized_gaussian_ssm/cmgf_poisson_demo.html">State Inference in a Poisson LDS using the Conditional Moments Gaussian Smoother</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../types.html">Terminology for types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">State Space Model (Base class)</a></li>
+
+
+
+
+
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-launch-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Launch interactive content">
+    <i class="fas fa-rocket"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://mybinder.org/v2/gh/probml/dynamax/main?urlpath=tree/docs/notebooks/linear_gaussian_ssm/lgssm_hmc.ipynb" target="_blank"
+   class="btn btn-sm dropdown-item"
+   title="Launch on Binder"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  
+    <img alt="Binder logo" src="../../_static/images/logo_binder.svg">
+  </span>
+<span class="btn__text-container">Binder</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://colab.research.google.com/github/probml/dynamax/blob/main/docs/notebooks/linear_gaussian_ssm/lgssm_hmc.ipynb" target="_blank"
+   class="btn btn-sm dropdown-item"
+   title="Launch on Colab"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  
+    <img alt="Colab logo" src="../../_static/images/logo_colab.png">
+  </span>
+<span class="btn__text-container">Colab</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+<a href="https://github.com/probml/dynamax" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Bayesian parameter estimation for an LG-SSM using HMC</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data">Data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-function-for-plotting">Helper function for plotting</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#infer-the-model-parameters-using-hmc">Infer the model parameters using HMC</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-function-to-run-hmc">Helper function to run HMC</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#call-hmc">Call HMC</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualize-predictions-with-samples-from-the-posterior">Visualize predictions with samples from the posterior</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-hmc-to-infer-posterior-over-a-subset-of-the-parameters">Use HMC to infer posterior over a subset of the parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#conclusion">Conclusion</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="bayesian-parameter-estimation-for-an-lg-ssm-using-hmc">
+<h1>Bayesian parameter estimation for an LG-SSM using HMC<a class="headerlink" href="#bayesian-parameter-estimation-for-an-lg-ssm-using-hmc" title="Link to this heading">#</a></h1>
+<p>We show how to use the <a class="reference external" href="https://github.com/blackjax-devs/blackjax">Blackjax</a> libray to approximate the parameter posterior distribution over parameters,</p>
+<div class="amsmath math notranslate nohighlight">
+\[\begin{align*}
+p(\theta \mid y_{1:T}) &amp;\propto p(\theta) \, p(y_{1:T} \mid \theta).
+\end{align*}\]</div>
+<p>where</p>
+<div class="amsmath math notranslate nohighlight">
+\[\begin{align*}
+p(y_{1:T} \mid \theta)
+&amp;= \int p(z_{1:T}, y_{1:T} \mid \theta) \, \mathrm{d}z_{1:T}
+\end{align*} \]</div>
+<p>is the marginal likelihood of the observations under an LGSSM with parameters <span class="math notranslate nohighlight">\(\theta\)</span>.
+Dynamax computes the marginal log likelihood using the Kalman filter, and <code class="docutils literal notranslate"><span class="pre">jax.grad</span></code> automatically computes the gradient!</p>
+<p>Hamiltonian Monte Carlo (HMC) is an MCMC method for generating approximate samples from the posterior distribution
+by leveraging gradient information.
+(See <a class="reference external" href="https://arxiv.org/abs/1206.1901">Neal (2012)</a> for an introduction to HMC.)
+The key idea is to define a Markov chain that updates the parameters by following
+Hamiltonian dynamics on an energy function defined by the negative log joint probability,
+If you set the Markov chain up carefully, you can ensure that the parameters will asymptotically follow the posterior distribution of interest.</p>
+<p>Once you have approximate posterior samples of the parameters, <span class="math notranslate nohighlight">\(\{\theta^{(m)}\}_{m=1}^M\)</span>, you can estimate expectations of interest under the posterior distribution. For example, we can make Bayesian forecasts by taking sample averages,</p>
+<div class="amsmath math notranslate nohighlight">
+\[\begin{align*}
+\mathbb{E}[y_{T+\Delta t} \mid y_{1:T}] 
+&amp;= \mathbb{E}_{p(\theta | y_{1:T})}[\mathbb{E} [y_{T+\Delta t} \mid y_{1:T}, \theta]] \\
+&amp;\approx \frac{1}{M} \sum_{m=1}^M \mathbb{E}[y_{T+\Delta t} \mid y_{1:T}, \theta^{(m)}]
+\end{align*}\]</div>
+<p>Compared this to the forecasts made in the previous notebook, where we used the maximum likelihood point estimate, <span class="math notranslate nohighlight">\(\hat{\theta}_{\mathsf{MLE}}\)</span>. Here, we account for posterior uncertainty about the model parameters when generating our forecasts.</p>
+<p>Thankfully, <a class="reference external" href="https://github.com/blackjax-devs/blackjax">Blackjax</a> has ready-made implementations of HMC (and other MCMC algorithms) that we can use in Dynamax, as shown below!</p>
+<section id="setup">
+<h2>Setup<a class="headerlink" href="#setup" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%%capture</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">dynamax</span>
+<span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;installing dynamax&#39;</span><span class="p">)</span>
+    <span class="o">%</span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">q</span> <span class="n">dynamax</span><span class="p">[</span><span class="n">notebooks</span><span class="p">]</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">dynamax</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">blackjax</span>
+<span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;installing blackjax&#39;</span><span class="p">)</span>
+    <span class="o">%</span><span class="k">pip</span> install -qq blackjax
+    <span class="kn">import</span><span class="w"> </span><span class="nn">blackjax</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastprogress.fastprogress</span><span class="w"> </span><span class="kn">import</span> <span class="n">progress_bar</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">random</span> <span class="k">as</span>  <span class="n">jr</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">numpy</span> <span class="k">as</span> <span class="n">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">jit</span><span class="p">,</span> <span class="n">vmap</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">count</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dynamax.linear_gaussian_ssm</span><span class="w"> </span><span class="kn">import</span> <span class="n">LinearGaussianConjugateSSM</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dynamax.parameters</span><span class="w"> </span><span class="kn">import</span> <span class="n">log_det_jac_constrain</span><span class="p">,</span> <span class="n">to_unconstrained</span><span class="p">,</span> <span class="n">from_unconstrained</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dynamax.utils.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">random_rotation</span><span class="p">,</span> <span class="n">pytree_stack</span><span class="p">,</span> <span class="n">pytree_slice</span><span class="p">,</span> <span class="n">ensure_array_has_batch_dim</span>
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+<section id="data">
+<h2>Data<a class="headerlink" href="#data" title="Link to this heading">#</a></h2>
+<p>As in the previous notebook, we simulate 2-dimensional latent states and 10-dimensional emissions from a linear Gaussian SSM with randomly initialized parameters. By default, <code class="docutils literal notranslate"><span class="pre">initialize</span></code> sets the dynamics matrix to <span class="math notranslate nohighlight">\(F = 0.99 I\)</span> so that the dynamics are a stable, slowly decaying random walk.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">state_dim</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">emission_dim</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">num_timesteps</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="n">k1</span><span class="p">,</span> <span class="n">k2</span><span class="p">,</span> <span class="n">k3</span> <span class="o">=</span> <span class="n">jr</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">jr</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="mi">3</span><span class="p">)</span>
+
+<span class="c1"># Construct the true model with randomly initialized parameters</span>
+<span class="n">true_A</span> <span class="o">=</span> <span class="mf">0.99</span> <span class="o">*</span> <span class="n">random_rotation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="n">k1</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="n">state_dim</span><span class="p">,</span> <span class="n">theta</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">10</span><span class="p">)</span>
+<span class="n">true_Sigma</span> <span class="o">=</span> <span class="mf">0.01</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">state_dim</span><span class="p">)</span>
+<span class="n">true_model</span> <span class="o">=</span> <span class="n">LinearGaussianConjugateSSM</span><span class="p">(</span><span class="n">state_dim</span><span class="p">,</span> <span class="n">emission_dim</span><span class="p">)</span>
+<span class="n">true_params</span><span class="p">,</span> <span class="n">param_props</span> <span class="o">=</span> <span class="n">true_model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span>
+    <span class="n">key</span><span class="o">=</span><span class="n">k1</span><span class="p">,</span> <span class="n">dynamics_weights</span><span class="o">=</span><span class="n">true_A</span><span class="p">,</span> <span class="n">dynamics_covariance</span><span class="o">=</span><span class="n">true_Sigma</span><span class="p">)</span>            
+
+<span class="c1"># Sample states and emissions from the true model</span>
+<span class="n">true_states</span><span class="p">,</span> <span class="n">emissions</span> <span class="o">=</span> <span class="n">true_model</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">true_params</span><span class="p">,</span> <span class="n">k3</span><span class="p">,</span> <span class="n">num_timesteps</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+<section id="helper-function-for-plotting">
+<h2>Helper function for plotting<a class="headerlink" href="#helper-function-for-plotting" title="Link to this heading">#</a></h2>
+<p>As in the LGSSM Learning notebook, this function plots the observed emissions alongside the smoothed and forecasted emissions under the model.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">plot_emissions_and_forecast</span><span class="p">(</span><span class="n">smooth_emissions</span><span class="p">,</span>
+                                <span class="n">smooth_emissions_std</span><span class="p">,</span>
+                                <span class="n">forecast_emissions</span><span class="p">,</span>
+                                <span class="n">forecast_emissions_std</span><span class="p">,</span>
+                                <span class="n">spc</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot the true emissions, the reconstructed emissions, and the future forecast.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">num_timesteps</span> <span class="o">=</span> <span class="n">emissions</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">num_forecast_timesteps</span> <span class="o">=</span> <span class="n">forecast_emissions</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">t_obs</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_timesteps</span><span class="p">)</span>
+    <span class="n">t_forecast</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_timesteps</span><span class="p">,</span> <span class="n">num_timesteps</span> <span class="o">+</span> <span class="n">num_forecast_timesteps</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">emission_dim</span><span class="p">):</span>
+        <span class="c1"># Plot the emissions</span>
+        <span class="c1"># axs[1].axhline(i *spc, color=&quot;black&quot;, linestyle=&quot;:&quot;, alpha=0.5)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">emissions</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">spc</span> <span class="o">*</span> <span class="n">i</span><span class="p">,</span> <span class="s2">&quot;--k&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;observed&quot;</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">ln</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">t_obs</span><span class="p">,</span> <span class="n">smooth_emissions</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">spc</span> <span class="o">*</span> <span class="n">i</span><span class="p">,</span> 
+                      <span class="n">label</span><span class="o">=</span><span class="s2">&quot;smoothed&quot;</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span>
+            <span class="n">t_obs</span><span class="p">,</span>
+            <span class="n">spc</span> <span class="o">*</span> <span class="n">i</span> <span class="o">+</span> <span class="n">smooth_emissions</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">smooth_emissions_std</span><span class="p">[:,</span> <span class="n">i</span><span class="p">],</span>
+            <span class="n">spc</span> <span class="o">*</span> <span class="n">i</span> <span class="o">+</span> <span class="n">smooth_emissions</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">smooth_emissions_std</span><span class="p">[:,</span> <span class="n">i</span><span class="p">],</span>
+            <span class="n">color</span><span class="o">=</span><span class="n">ln</span><span class="o">.</span><span class="n">get_color</span><span class="p">(),</span>
+            <span class="n">alpha</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+        <span class="p">)</span>
+        
+        <span class="c1"># Plot the forecast</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">t_forecast</span><span class="p">,</span> <span class="n">forecast_emissions</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">spc</span> <span class="o">*</span> <span class="n">i</span><span class="p">,</span> 
+                 <span class="n">ls</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">ln</span><span class="o">.</span><span class="n">get_color</span><span class="p">(),</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;forecast&quot;</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span>
+            <span class="n">t_forecast</span><span class="p">,</span>
+            <span class="n">spc</span> <span class="o">*</span> <span class="n">i</span> <span class="o">+</span> <span class="n">forecast_emissions</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">forecast_emissions_std</span><span class="p">[:,</span> <span class="n">i</span><span class="p">],</span>
+            <span class="n">spc</span> <span class="o">*</span> <span class="n">i</span> <span class="o">+</span> <span class="n">forecast_emissions</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">forecast_emissions_std</span><span class="p">[:,</span> <span class="n">i</span><span class="p">],</span>
+            <span class="n">color</span><span class="o">=</span><span class="n">ln</span><span class="o">.</span><span class="n">get_color</span><span class="p">(),</span>
+            <span class="n">alpha</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Draw a dividing line between observations and forecasts</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">num_timesteps</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        
+    <span class="c1"># Label the axes</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;time&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">num_timesteps</span> <span class="o">+</span> <span class="n">num_forecast_timesteps</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;emissions&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">yticks</span><span class="p">(</span><span class="n">spc</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">emission_dim</span><span class="p">),</span> 
+               <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;dim. </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">emission_dim</span><span class="p">)])</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">smooth_and_forecast</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">emissions</span><span class="p">,</span> <span class="n">num_forecast_timesteps</span><span class="o">=</span><span class="mi">50</span><span class="p">):</span>
+    <span class="n">smooth_emissions</span><span class="p">,</span> <span class="n">smooth_emissions_std</span> <span class="o">=</span> \
+        <span class="n">model</span><span class="o">.</span><span class="n">posterior_predictive</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">emissions</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">forecast_emissions</span><span class="p">,</span> <span class="n">forecast_emissions_cov</span> <span class="o">=</span> \
+        <span class="n">model</span><span class="o">.</span><span class="n">forecast</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">emissions</span><span class="p">,</span> <span class="n">num_forecast_timesteps</span><span class="p">)</span>
+    <span class="n">forecast_emissions_std</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">vmap</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">diag</span><span class="p">)(</span><span class="n">forecast_emissions_cov</span><span class="p">))</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">smooth_emissions</span><span class="p">,</span> 
+            <span class="n">smooth_emissions_std</span><span class="p">,</span> 
+            <span class="n">forecast_emissions</span><span class="p">,</span> 
+            <span class="n">forecast_emissions_std</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="n">true_smooth_emissions</span><span class="p">,</span> <span class="n">true_smooth_emissions_std</span><span class="p">,</span> 
+ <span class="n">true_forecast_emissions</span><span class="p">,</span> <span class="n">true_forecast_emissions_std</span><span class="p">)</span> <span class="o">=</span> \
+    <span class="n">smooth_and_forecast</span><span class="p">(</span><span class="n">true_model</span><span class="p">,</span> <span class="n">true_params</span><span class="p">,</span> <span class="n">emissions</span><span class="p">)</span>
+
+<span class="n">plot_emissions_and_forecast</span><span class="p">(</span><span class="n">true_smooth_emissions</span><span class="p">,</span>
+                            <span class="n">true_smooth_emissions_std</span><span class="p">,</span>
+                            <span class="n">true_forecast_emissions</span><span class="p">,</span>
+                            <span class="n">true_forecast_emissions_std</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="../../_images/4fc57470542e777bd711d9fd2dfe4af24f15203d5ee8b80ea344ffe8ec5c891d.png" src="../../_images/4fc57470542e777bd711d9fd2dfe4af24f15203d5ee8b80ea344ffe8ec5c891d.png" />
+</div>
+</div>
+</section>
+<section id="infer-the-model-parameters-using-hmc">
+<h2>Infer the model parameters using HMC<a class="headerlink" href="#infer-the-model-parameters-using-hmc" title="Link to this heading">#</a></h2>
+<p>We initialize the model with random parameters, as in the preceding notebook. Here, however, we use HMC to sample from the posterior distribution of parameters given the observed emissions.</p>
+<section id="helper-function-to-run-hmc">
+<h3>Helper function to run HMC<a class="headerlink" href="#helper-function-to-run-hmc" title="Link to this heading">#</a></h3>
+<p>First, we write a helper function to run HMC, based on the Blackjax examples.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">fit_hmc</span><span class="p">(</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">initial_params</span><span class="p">,</span>
+            <span class="n">props</span><span class="p">,</span>
+            <span class="n">key</span><span class="p">,</span>
+            <span class="n">num_samples</span><span class="p">,</span>
+            <span class="n">emissions</span><span class="p">,</span>
+            <span class="n">inputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">warmup_steps</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="n">num_integration_steps</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+            <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sample parameters of the model using HMC.&quot;&quot;&quot;</span>
+    <span class="c1"># Make sure the emissions and inputs have batch dimensions</span>
+    <span class="n">batch_emissions</span> <span class="o">=</span> <span class="n">ensure_array_has_batch_dim</span><span class="p">(</span><span class="n">emissions</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">emission_shape</span><span class="p">)</span>
+    <span class="n">batch_inputs</span> <span class="o">=</span> <span class="n">ensure_array_has_batch_dim</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">inputs_shape</span><span class="p">)</span>
+
+    <span class="n">initial_unc_params</span> <span class="o">=</span> <span class="n">to_unconstrained</span><span class="p">(</span><span class="n">initial_params</span><span class="p">,</span> <span class="n">props</span><span class="p">)</span>
+
+    <span class="c1"># The log likelihood that the HMC samples from</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_logprob</span><span class="p">(</span><span class="n">unc_params</span><span class="p">):</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">from_unconstrained</span><span class="p">(</span><span class="n">unc_params</span><span class="p">,</span> <span class="n">props</span><span class="p">)</span>
+        <span class="n">batch_lls</span> <span class="o">=</span> <span class="n">vmap</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">marginal_log_prob</span><span class="p">,</span> <span class="n">params</span><span class="p">))(</span><span class="n">batch_emissions</span><span class="p">,</span> <span class="n">batch_inputs</span><span class="p">)</span>
+        <span class="n">lp</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">log_prior</span><span class="p">(</span><span class="n">params</span><span class="p">)</span> <span class="o">+</span> <span class="n">batch_lls</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="n">lp</span> <span class="o">+=</span> <span class="n">log_det_jac_constrain</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">props</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">lp</span>
+
+    <span class="c1"># Initialize the HMC sampler using window_adaptation</span>
+    <span class="n">warmup</span> <span class="o">=</span> <span class="n">blackjax</span><span class="o">.</span><span class="n">window_adaptation</span><span class="p">(</span><span class="n">blackjax</span><span class="o">.</span><span class="n">hmc</span><span class="p">,</span>
+                                        <span class="n">_logprob</span><span class="p">,</span>
+                                        <span class="n">num_integration_steps</span><span class="o">=</span><span class="n">num_integration_steps</span><span class="p">,</span>
+                                        <span class="n">progress_bar</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+    <span class="n">init_key</span><span class="p">,</span> <span class="n">key</span> <span class="o">=</span> <span class="n">jr</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">hmc_initial_state</span><span class="p">,</span> <span class="n">hmc_params</span><span class="p">),</span> <span class="n">_</span> <span class="o">=</span> <span class="n">warmup</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">init_key</span><span class="p">,</span> <span class="n">initial_unc_params</span><span class="p">,</span> <span class="n">num_steps</span><span class="o">=</span><span class="n">warmup_steps</span><span class="p">)</span>
+    <span class="n">hmc_kernel</span> <span class="o">=</span> <span class="n">blackjax</span><span class="o">.</span><span class="n">hmc</span><span class="p">(</span><span class="n">_logprob</span><span class="p">,</span> <span class="o">**</span><span class="n">hmc_params</span><span class="p">)</span><span class="o">.</span><span class="n">step</span>
+
+    <span class="nd">@jit</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hmc_step</span><span class="p">(</span><span class="n">hmc_state</span><span class="p">,</span> <span class="n">step_key</span><span class="p">):</span>
+        <span class="n">next_hmc_state</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">hmc_kernel</span><span class="p">(</span><span class="n">step_key</span><span class="p">,</span> <span class="n">hmc_state</span><span class="p">)</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">from_unconstrained</span><span class="p">(</span><span class="n">hmc_state</span><span class="o">.</span><span class="n">position</span><span class="p">,</span> <span class="n">props</span><span class="p">)</span>
+
+        <span class="c1"># Compute the log joint probability using the constrained params</span>
+        <span class="c1"># Note: this is a bit inefficient because we compute the log probability twice,</span>
+        <span class="c1"># once with the constrained params and once with the unconstrained. However, the</span>
+        <span class="c1"># log prob with the constrained params is easier to compare to the true log prob. </span>
+        <span class="n">lp</span> <span class="o">=</span> <span class="n">vmap</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">marginal_log_prob</span><span class="p">,</span> <span class="n">params</span><span class="p">))(</span><span class="n">batch_emissions</span><span class="p">,</span> <span class="n">batch_inputs</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="n">lp</span> <span class="o">+=</span> <span class="n">model</span><span class="o">.</span><span class="n">log_prior</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">next_hmc_state</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">lp</span>
+
+    <span class="c1"># Start sampling</span>
+    <span class="n">log_probs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">hmc_state</span> <span class="o">=</span> <span class="n">hmc_initial_state</span>
+    <span class="n">pbar</span> <span class="o">=</span> <span class="n">progress_bar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">num_samples</span><span class="p">))</span> <span class="k">if</span> <span class="n">verbose</span> <span class="k">else</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_samples</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">pbar</span><span class="p">:</span>
+        <span class="n">step_key</span><span class="p">,</span> <span class="n">key</span> <span class="o">=</span> <span class="n">jr</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">hmc_state</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">lp</span> <span class="o">=</span> <span class="n">hmc_step</span><span class="p">(</span><span class="n">hmc_state</span><span class="p">,</span> <span class="n">step_key</span><span class="p">)</span>
+        <span class="n">log_probs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lp</span><span class="p">)</span>
+        <span class="n">samples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+
+    <span class="c1"># Combine the samples into a single pytree</span>
+    <span class="k">return</span> <span class="n">pytree_stack</span><span class="p">(</span><span class="n">samples</span><span class="p">),</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">log_probs</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="call-hmc">
+<h2>Call HMC<a class="headerlink" href="#call-hmc" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Plot predictions from a random, untrained model</span>
+<span class="n">init_key</span><span class="p">,</span> <span class="n">hmc_key</span> <span class="o">=</span> <span class="n">jr</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">jr</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="mi">42</span><span class="p">))</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">LinearGaussianConjugateSSM</span><span class="p">(</span><span class="n">state_dim</span><span class="p">,</span> <span class="n">emission_dim</span><span class="p">)</span>
+<span class="n">params</span><span class="p">,</span> <span class="n">param_props</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">init_key</span><span class="p">)</span>
+
+<span class="n">sample_size</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">param_samples</span><span class="p">,</span> <span class="n">lps</span> <span class="o">=</span> <span class="n">fit_hmc</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> 
+                             <span class="n">params</span><span class="p">,</span> 
+                             <span class="n">param_props</span><span class="p">,</span> 
+                             <span class="n">hmc_key</span><span class="p">,</span> 
+                             <span class="n">sample_size</span><span class="p">,</span> 
+                             <span class="n">emissions</span><span class="p">,</span> 
+                             <span class="n">num_integration_steps</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+                             <span class="n">warmup_steps</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Running window adaptation
+</pre></div>
+</div>
+<div class="output text_html">
+<style>
+    progress { appearance: none; border: none; border-radius: 4px; width: 300px;
+        height: 20px; vertical-align: middle; background: #e0e0e0; }
+
+    progress::-webkit-progress-bar { background: #e0e0e0; border-radius: 4px; }
+    progress::-webkit-progress-value { background: #2196F3; border-radius: 4px; }
+    progress::-moz-progress-bar { background: #2196F3; border-radius: 4px; }
+
+    progress:not([value]) {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px); }
+
+    progress.progress-bar-interrupted::-webkit-progress-value { background: #F44336; }
+    progress.progress-bar-interrupted::-moz-progress-value { background: #F44336; }
+    progress.progress-bar-interrupted::-webkit-progress-bar { background: #F44336; }
+    progress.progress-bar-interrupted::-moz-progress-bar { background: #F44336; }
+    progress.progress-bar-interrupted { background: #F44336; }    
+
+    table.fastprogress { border-collapse: collapse; margin: 1em 0; font-size: 0.9em; }
+    table.fastprogress th, table.fastprogress td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
+    table.fastprogress thead tr { background: #f8f9fa; font-weight: bold; }
+    table.fastprogress tbody tr:nth-of-type(even) { background: #f8f9fa; }
+</style>
+</div><div class="output text_html"><div><progress max="10" value="10"></progress> 100.00% [10/10 00:00&lt;?]</div></div><div class="output text_html"><div><progress max="1000" value="1000"></progress> 100.00% [1000/1000 00:25&lt;00:00]</div></div></div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">lps</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;HMC samples&quot;</span><span class="p">)</span>
+<span class="n">true_lp</span> <span class="o">=</span> <span class="n">true_model</span><span class="o">.</span><span class="n">marginal_log_prob</span><span class="p">(</span><span class="n">true_params</span><span class="p">,</span> <span class="n">emissions</span><span class="p">)</span> \
+    <span class="o">+</span> <span class="n">true_model</span><span class="o">.</span><span class="n">log_prior</span><span class="p">(</span><span class="n">true_params</span><span class="p">)</span>
+    
+<span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">true_lp</span><span class="p">,</span> 
+            <span class="n">color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;true parameters&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;iteration&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;log probability&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.legend.Legend at 0x7f6ac87699d0&gt;
+</pre></div>
+</div>
+<img alt="../../_images/6aca836066d618dd1aa6d772457cf6106dbc162d8e92a1bed8cfcaac2bec35c3.png" src="../../_images/6aca836066d618dd1aa6d772457cf6106dbc162d8e92a1bed8cfcaac2bec35c3.png" />
+</div>
+</div>
+</section>
+<section id="visualize-predictions-with-samples-from-the-posterior">
+<h2>Visualize predictions with samples from the posterior<a class="headerlink" href="#visualize-predictions-with-samples-from-the-posterior" title="Link to this heading">#</a></h2>
+<p>We use the <a class="reference external" href="https://en.wikipedia.org/wiki/Law_of_total_variance">law of total variance</a> to approximate the variance of the smoothed and forecast emissions under the posterior.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="n">smooth_emissions_samples</span><span class="p">,</span> <span class="n">smooth_emissions_std_samples</span><span class="p">,</span> 
+ <span class="n">forecast_emissions_samples</span><span class="p">,</span> <span class="n">forecast_emissions_std_samples</span><span class="p">)</span> <span class="o">=</span> \
+    <span class="n">vmap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">params</span><span class="p">:</span> <span class="n">smooth_and_forecast</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">emissions</span><span class="p">))(</span><span class="n">param_samples</span><span class="p">)</span>
+
+<span class="c1"># Compute the mean and standard deviation of the samples</span>
+<span class="n">burnin</span> <span class="o">=</span> <span class="mi">200</span>
+<span class="n">est_smooth_emissions</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">smooth_emissions_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">est_forecast_emissions</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">forecast_emissions_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">est_smooth_emissions_std</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">smooth_emissions_std_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:]</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> 
+    <span class="n">jnp</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">smooth_emissions_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+<span class="n">est_forecast_emissions_std</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">forecast_emissions_std_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:]</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> 
+    <span class="n">jnp</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">forecast_emissions_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">plot_emissions_and_forecast</span><span class="p">(</span><span class="n">est_smooth_emissions</span><span class="p">,</span>
+                            <span class="n">est_smooth_emissions_std</span><span class="p">,</span>
+                            <span class="n">est_forecast_emissions</span><span class="p">,</span>
+                            <span class="n">est_forecast_emissions_std</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="../../_images/2108364e1690cb029ae3fc02aa57f3ab764bea104f8b40a298d44026974f7437.png" src="../../_images/2108364e1690cb029ae3fc02aa57f3ab764bea104f8b40a298d44026974f7437.png" />
+</div>
+</div>
+</section>
+<section id="use-hmc-to-infer-posterior-over-a-subset-of-the-parameters">
+<h2>Use HMC to infer posterior over a subset of the parameters<a class="headerlink" href="#use-hmc-to-infer-posterior-over-a-subset-of-the-parameters" title="Link to this heading">#</a></h2>
+<p>We freeze the transition parameters and initial parameters, so that only covariance matrices are learned.
+This is useful for structural time series models (see e.g., <a class="reference external" href="https://github.com/probml/sts-jax">sts-jax</a> library,
+which builds on dynamax.).</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Freeze transition parameters and initial parameters, so that only covariance matrices are learned</span>
+<span class="n">init_key</span><span class="p">,</span> <span class="n">hmc_key</span> <span class="o">=</span> <span class="n">jr</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">jr</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="mi">42</span><span class="p">))</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">LinearGaussianConjugateSSM</span><span class="p">(</span><span class="n">state_dim</span><span class="p">,</span> <span class="n">emission_dim</span><span class="p">)</span>
+<span class="n">params</span><span class="p">,</span> <span class="n">param_props</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span>
+    <span class="n">init_key</span><span class="p">,</span>                                                                                           <span class="c1">#   emission_weights=true_params.emissions.weights,</span>
+    <span class="n">emission_weights</span><span class="o">=</span><span class="n">true_params</span><span class="o">.</span><span class="n">emissions</span><span class="o">.</span><span class="n">weights</span><span class="p">,</span>
+    <span class="n">emission_bias</span><span class="o">=</span><span class="n">true_params</span><span class="o">.</span><span class="n">emissions</span><span class="o">.</span><span class="n">bias</span>
+<span class="p">)</span>
+
+<span class="c1"># Set transition parameters and initial parameters to true values and mark as frozen</span>
+<span class="n">param_props</span><span class="o">.</span><span class="n">emissions</span><span class="o">.</span><span class="n">weights</span><span class="o">.</span><span class="n">trainable</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="n">param_props</span><span class="o">.</span><span class="n">emissions</span><span class="o">.</span><span class="n">bias</span><span class="o">.</span><span class="n">trainable</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">sample_size</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">param_samples</span><span class="p">,</span> <span class="n">lps</span> <span class="o">=</span> <span class="n">fit_hmc</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> 
+                             <span class="n">params</span><span class="p">,</span> 
+                             <span class="n">param_props</span><span class="p">,</span> 
+                             <span class="n">hmc_key</span><span class="p">,</span>
+                             <span class="n">sample_size</span><span class="p">,</span> 
+                             <span class="n">emissions</span><span class="p">,</span> 
+                             <span class="n">num_integration_steps</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+                             <span class="n">warmup_steps</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Running window adaptation
+</pre></div>
+</div>
+<div class="output text_html"><div><progress max="10" value="10"></progress> 100.00% [10/10 00:00&lt;?]</div></div><div class="output text_html"><div><progress max="1000" value="1000"></progress> 100.00% [1000/1000 00:22&lt;00:00]</div></div></div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">lps</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Constrained HMC samples&quot;</span><span class="p">)</span>
+<span class="n">true_lp</span> <span class="o">=</span> <span class="n">true_model</span><span class="o">.</span><span class="n">marginal_log_prob</span><span class="p">(</span><span class="n">true_params</span><span class="p">,</span> <span class="n">emissions</span><span class="p">)</span> \
+    <span class="o">+</span> <span class="n">true_model</span><span class="o">.</span><span class="n">log_prior</span><span class="p">(</span><span class="n">true_params</span><span class="p">)</span>
+    
+<span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">true_lp</span><span class="p">,</span> 
+            <span class="n">color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;true parameters&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;iteration&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;log probability&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.legend.Legend at 0x7f6ab97b2f50&gt;
+</pre></div>
+</div>
+<img alt="../../_images/fd4c67236da6777d9c706d30908b1ba60e6538bfa53a14e88ff334336e18b684.png" src="../../_images/fd4c67236da6777d9c706d30908b1ba60e6538bfa53a14e88ff334336e18b684.png" />
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="n">smooth_emissions_samples</span><span class="p">,</span> <span class="n">smooth_emissions_std_samples</span><span class="p">,</span> 
+ <span class="n">forecast_emissions_samples</span><span class="p">,</span> <span class="n">forecast_emissions_std_samples</span><span class="p">)</span> <span class="o">=</span> \
+    <span class="n">vmap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">params</span><span class="p">:</span> <span class="n">smooth_and_forecast</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">emissions</span><span class="p">))(</span><span class="n">param_samples</span><span class="p">)</span>
+
+<span class="c1"># Compute the mean and standard deviation of the samples</span>
+<span class="n">burnin</span> <span class="o">=</span> <span class="mi">200</span>
+<span class="n">est_smooth_emissions</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">smooth_emissions_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">est_forecast_emissions</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">forecast_emissions_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">est_smooth_emissions_std</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">smooth_emissions_std_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:]</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> 
+    <span class="n">jnp</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">smooth_emissions_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+<span class="n">est_forecast_emissions_std</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">forecast_emissions_std_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:]</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> 
+    <span class="n">jnp</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">forecast_emissions_samples</span><span class="p">[</span><span class="n">burnin</span><span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+
+<span class="n">plot_emissions_and_forecast</span><span class="p">(</span><span class="n">est_smooth_emissions</span><span class="p">,</span>
+                            <span class="n">est_smooth_emissions_std</span><span class="p">,</span>
+                            <span class="n">est_forecast_emissions</span><span class="p">,</span>
+                            <span class="n">est_forecast_emissions_std</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="../../_images/b9b4ef82e5d68e6f001a0cc1970f7a371570836b25cb50dbc08ec3bea0ac31c4.png" src="../../_images/b9b4ef82e5d68e6f001a0cc1970f7a371570836b25cb50dbc08ec3bea0ac31c4.png" />
+</div>
+</div>
+</section>
+<section id="conclusion">
+<h2>Conclusion<a class="headerlink" href="#conclusion" title="Link to this heading">#</a></h2>
+<p>With Dynamax, it’s fairly straightforward to run black-box MCMC routines like HMC to approximate the posterior distribution over model parameters. You just plug in the marginal log probability, since the filtering algorithms are differentiable in Dynamax!</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="lgssm_learning.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">MAP parameter estimation for an LG-SSM using EM and SGD</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../nonlinear_gaussian_ssm/ekf_ukf_spiral.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Tracking a spiraling object using the extended / unscented Kalman filter</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data">Data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-function-for-plotting">Helper function for plotting</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#infer-the-model-parameters-using-hmc">Infer the model parameters using HMC</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#helper-function-to-run-hmc">Helper function to run HMC</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#call-hmc">Call HMC</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualize-predictions-with-samples-from-the-posterior">Visualize predictions with samples from the posterior</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-hmc-to-infer-posterior-over-a-subset-of-the-parameters">Use HMC to infer posterior over a subset of the parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#conclusion">Conclusion</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Peter Chang, Giles Harper-Donnelly, Aleyna Kara, Xinglong Li, Scott Linderman, and Kevin Murphy
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022, Peter Chang, Giles Harper-Donnelly, Aleyna Kara, Xinglong Li, Scott Linderman, and Kevin Murphy.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
