@@ -183,7 +183,7 @@ def _initialize_filtering_messages(
         C = symmetrize(P - K @ S @ K.T)
         eta = jnp.zeros_like(m)
         J = jnp.zeros_like(P)
-        logZ = _marginal_loglik_elem(P, H, R, innov)
+        logZ = _marginal_loglik_elem(P, H, R, innov - H @ m)
         return A, b, C, J, eta, logZ
 
 
