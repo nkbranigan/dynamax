@@ -9,7 +9,7 @@ import tensorflow_probability.substrates.jax.distributions as tfd
 from jax import vmap
 from jax.scipy.special import logsumexp
 from jaxtyping import Float, Array
-from dynamax.parameters import ParameterProperties
+from dynamax.parameters import ParameterProperties, ensure_all_or_none_trainable
 from dynamax.utils.distributions import NormalInverseGamma
 from dynamax.utils.distributions import NormalInverseWishart
 from dynamax.utils.distributions import nig_posterior_update
@@ -208,29 +208,26 @@ class GaussianMixtureHMMEmissions(HMMEmissions):
             m_step_state: Any
     ) -> Tuple[ParamsGaussianMixtureHMMEmissions, Any]:
         """Perform the M-step of the EM algorithm."""
-        assert props.weights.trainable, "GaussianMixtureHMM.fit_em() does not support fitting a subset of parameters"
-        assert props.means.trainable, "GaussianMixtureHMM.fit_em() does not support fitting a subset of parameters"
-        assert props.covs.trainable, "GaussianMixtureHMM.fit_em() does not support fitting a subset of parameters"
+        if ensure_all_or_none_trainable(props):
+            niw_prior = NormalInverseWishart(self.emission_prior_mean,
+                                             self.emission_prior_mean_concentration,
+                                             self.emission_prior_df,
+                                             self.emission_prior_scale)
 
-        niw_prior = NormalInverseWishart(self.emission_prior_mean,
-                                         self.emission_prior_mean_concentration,
-                                         self.emission_prior_df,
-                                         self.emission_prior_scale)
+            def _single_m_step(Sx, SxxT, N):
+                """Update the parameters for one discrete state"""
+                # Update the component probabilities (i.e. weights)
+                nu_post = self.emission_weights_concentration + N
+                weights = tfd.Dirichlet(nu_post).mode()
 
-        def _single_m_step(Sx, SxxT, N):
-            """Update the parameters for one discrete state"""
-            # Update the component probabilities (i.e. weights)
-            nu_post = self.emission_weights_concentration + N
-            weights = tfd.Dirichlet(nu_post).mode()
+                # Update the mean and covariance for each component
+                covs, means = vmap(lambda stats: niw_posterior_update(niw_prior, stats).mode())((Sx, SxxT, N))
+                return weights, means, covs
 
-            # Update the mean and covariance for each component
-            covs, means = vmap(lambda stats: niw_posterior_update(niw_prior, stats).mode())((Sx, SxxT, N))
-            return weights, means, covs
-
-        emission_stats = pytree_sum(batch_stats, axis=0)
-        weights, means, covs = vmap(_single_m_step)(
-            emission_stats['Sx'], emission_stats['SxxT'], emission_stats['N'])
-        params = params._replace(weights=weights, means=means, covs=covs)
+            emission_stats = pytree_sum(batch_stats, axis=0)
+            weights, means, covs = vmap(_single_m_step)(
+                emission_stats['Sx'], emission_stats['SxxT'], emission_stats['N'])
+            params = params._replace(weights=weights, means=means, covs=covs)
         return params, m_step_state
 
 
@@ -491,32 +488,29 @@ class DiagonalGaussianMixtureHMMEmissions(HMMEmissions):
                m_step_state: None
     ) -> Tuple[ParamsDiagonalGaussianMixtureHMMEmissions, None]:
         """Perform the M-step of the EM algorithm."""
-        assert props.weights.trainable, "GaussianMixtureDiagHMM.fit_em() does not support fitting a subset of parameters"
-        assert props.means.trainable, "GaussianMixtureDiagHMM.fit_em() does not support fitting a subset of parameters"
-        assert props.scale_diags.trainable, "GaussianMixtureDiagHMM.fit_em() does not support fitting a subset of parameters"
+        if ensure_all_or_none_trainable(props):
+            nig_prior = NormalInverseGamma(
+                self.emission_prior_mean, self.emission_prior_mean_concentration,
+                self.emission_prior_shape, self.emission_prior_scale)
 
-        nig_prior = NormalInverseGamma(
-            self.emission_prior_mean, self.emission_prior_mean_concentration,
-            self.emission_prior_shape, self.emission_prior_scale)
+            def _single_m_step(Sx, Sxsq, N):
+                """Update the parameters for one discrete state"""
+                # Update the component probabilities (i.e. weights)
+                nu_post = self.emission_weights_concentration + N
+                mixture_weights = tfd.Dirichlet(nu_post).mode()
 
-        def _single_m_step(Sx, Sxsq, N):
-            """Update the parameters for one discrete state"""
-            # Update the component probabilities (i.e. weights)
-            nu_post = self.emission_weights_concentration + N
-            mixture_weights = tfd.Dirichlet(nu_post).mode()
+                # Update the mean and variances for each component
+                var_diags, means = vmap(lambda stats: nig_posterior_update(nig_prior, stats).mode())((Sx, Sxsq, N))
+                scale_diags = jnp.sqrt(var_diags)
+                return mixture_weights, means, scale_diags
 
-            # Update the mean and variances for each component
-            var_diags, means = vmap(lambda stats: nig_posterior_update(nig_prior, stats).mode())((Sx, Sxsq, N))
-            scale_diags = jnp.sqrt(var_diags)
-            return mixture_weights, means, scale_diags
-
-        # Compute mixture weights, diagonal factors of covariance matrices and means
-        # for each state in parallel. Note that the first dimension of all sufficient
-        # statistics is equal to number of states of HMM.
-        emission_stats = pytree_sum(batch_stats, axis=0)
-        weights, means, scale_diags = vmap(_single_m_step)(
-            emission_stats['Sx'], emission_stats['Sxsq'], emission_stats['N'])
-        params = params._replace(weights=weights, means=means, scale_diags=scale_diags)
+            # Compute mixture weights, diagonal factors of covariance matrices and means
+            # for each state in parallel. Note that the first dimension of all sufficient
+            # statistics is equal to number of states of HMM.
+            emission_stats = pytree_sum(batch_stats, axis=0)
+            weights, means, scale_diags = vmap(_single_m_step)(
+                emission_stats['Sx'], emission_stats['Sxsq'], emission_stats['N'])
+            params = params._replace(weights=weights, means=means, scale_diags=scale_diags)
         return params, m_step_state
 
 

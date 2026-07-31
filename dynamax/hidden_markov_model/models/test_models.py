@@ -6,6 +6,7 @@ import jax.random as jr
 import pytest
 
 from jax import vmap
+from jax.tree_util import tree_leaves, tree_map
 from dynamax.utils.utils import monotonically_increasing
 
 NUM_TIMESTEPS = 50
@@ -39,6 +40,80 @@ def test_sample_and_fit(cls, kwargs, inputs):
     fitted_params, lps = hmm.fit_em(params, param_props, emissions, inputs=inputs, num_iters=10)
     assert monotonically_increasing(lps, atol=1e-2, rtol=1e-2)
     fitted_params, lps = hmm.fit_sgd(params, param_props, emissions, inputs=inputs, num_epochs=10)
+
+
+# Models whose closed-form emission m_step updates its parameters jointly, so they
+# currently support freezing all of the emission parameters or none, but nothing in between.
+JOINT_M_STEP_CONFIGS = [
+    (models.GaussianHMM, dict(num_states=3, emission_dim=2)),
+    (models.DiagonalGaussianHMM, dict(num_states=3, emission_dim=2)),
+    (models.SharedCovarianceGaussianHMM, dict(num_states=3, emission_dim=2)),
+    (models.LinearRegressionHMM, dict(num_states=3, emission_dim=2, input_dim=2)),
+    (models.LinearAutoregressiveHMM, dict(num_states=3, emission_dim=2, num_lags=1)),
+    (models.GaussianMixtureHMM, dict(num_states=3, num_components=2, emission_dim=2)),
+    (models.DiagonalGaussianMixtureHMM, dict(num_states=3, num_components=2, emission_dim=2)),
+]
+
+
+@pytest.mark.parametrize(["cls", "kwargs"], JOINT_M_STEP_CONFIGS)
+def test_em_partially_frozen_emissions_raises(cls, kwargs):
+    """Test that freezing some but not all emission parameters makes m_step raise."""
+    hmm = cls(**kwargs)
+    params, props = hmm.initialize(jr.PRNGKey(0))
+    props.emissions[0].trainable = False  # freeze one emission parameter
+    # batch_stats=None makes the test fail if m_step uses the statistics before the guard
+    with pytest.raises(NotImplementedError):
+        hmm.emission_component.m_step(params.emissions, props.emissions, None, None)
+
+
+@pytest.mark.parametrize(["cls", "kwargs"], JOINT_M_STEP_CONFIGS)
+def test_em_all_frozen_emissions_unchanged(cls, kwargs):
+    """Test that freezing all emission parameters makes m_step return them unchanged."""
+    hmm = cls(**kwargs)
+    params, props = hmm.initialize(jr.PRNGKey(0))
+    for prop in props.emissions:
+        prop.trainable = False
+    new_params, _ = hmm.emission_component.m_step(params.emissions, props.emissions, None, None)
+    assert all(tree_leaves(tree_map(jnp.array_equal, new_params, params.emissions)))
+
+
+def test_em_respects_frozen_emissions():
+    """Test fit_em end-to-end with frozen emission parameters."""
+    hmm = models.GaussianHMM(num_states=3, emission_dim=2)
+    key1, key2 = jr.split(jr.PRNGKey(0))
+    true_params, _ = hmm.initialize(key1)
+    _, emissions = hmm.sample(true_params, key2, num_timesteps=NUM_TIMESTEPS)
+
+    # Fit from parameters different from those that generated the data, so the
+    # transition fitting update below is large.
+    params, props = hmm.initialize(jr.PRNGKey(1))
+
+    props.emissions.means.trainable = False
+    with pytest.raises(NotImplementedError):
+        hmm.fit_em(params, props, emissions, num_iters=3)
+
+    props.emissions.covs.trainable = False
+    fitted_params, lps = hmm.fit_em(params, props, emissions, num_iters=3)
+    assert jnp.array_equal(fitted_params.emissions.means, params.emissions.means)
+    assert jnp.array_equal(fitted_params.emissions.covs, params.emissions.covs)
+    assert not jnp.allclose(fitted_params.transitions.transition_matrix,
+                            params.transitions.transition_matrix)
+    assert monotonically_increasing(lps, atol=1e-2, rtol=1e-2)
+
+
+def test_sgd_supports_partially_frozen_emissions():
+    """Test that fit_sgd supports the partial freeze that fit_em refuses, as fit_em's error message advises."""
+    hmm = models.GaussianHMM(num_states=3, emission_dim=2)
+    key1, key2 = jr.split(jr.PRNGKey(0))
+    true_params, _ = hmm.initialize(key1)
+    _, emissions = hmm.sample(true_params, key2, num_timesteps=NUM_TIMESTEPS)
+
+    params, props = hmm.initialize(jr.PRNGKey(1))
+    props.emissions.means.trainable = False
+    fitted_params, _ = hmm.fit_sgd(params, props, emissions, num_epochs=5)
+
+    assert jnp.array_equal(fitted_params.emissions.means, params.emissions.means)
+    assert not jnp.allclose(fitted_params.emissions.covs, params.emissions.covs)
 
 
 ## A few model-specific tests

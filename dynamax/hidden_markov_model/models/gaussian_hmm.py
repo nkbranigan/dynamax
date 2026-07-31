@@ -8,7 +8,7 @@ import tensorflow_probability.substrates.jax.distributions as tfd
 from jaxtyping import Float, Array
 import optax
 
-from dynamax.parameters import ParameterProperties
+from dynamax.parameters import ParameterProperties, ensure_all_or_none_trainable
 from dynamax.hidden_markov_model.inference import HMMPosterior
 from dynamax.hidden_markov_model.models.abstractions import HMM, HMMEmissions, HMMParameterSet, HMMPropertySet
 from dynamax.hidden_markov_model.models.initial import StandardHMMInitialState, ParamsStandardHMMInitialState
@@ -152,7 +152,7 @@ class GaussianHMMEmissions(HMMEmissions):
             m_step_state: Any
         ) -> Tuple[ParamsGaussianHMMEmissions, Any]:
         """Perform the M-step of the EM algorithm."""
-        if props.covs.trainable and props.means.trainable:
+        if ensure_all_or_none_trainable(props):
             niw_prior = NormalInverseWishart(loc=self.emission_prior_mean,
                                             mean_concentration=self.emission_prior_conc,
                                             df=self.emission_prior_df,
@@ -167,12 +167,6 @@ class GaussianHMMEmissions(HMMEmissions):
             emission_stats = pytree_sum(batch_stats, axis=0)
             covs, means = vmap(_single_m_step)(emission_stats)
             params = params._replace(means=means, covs=covs)
-
-        elif props.covs.trainable and not props.means.trainable:
-            raise NotImplementedError("GaussianHMM.fit_em() does not yet support fixed means and trainable covariance")
-
-        elif not props.covs.trainable and props.means.trainable:
-            raise NotImplementedError("GaussianHMM.fit_em() does not yet support fixed covariance and trainable means")
 
         return params, m_step_state
 
@@ -292,21 +286,22 @@ class DiagonalGaussianHMMEmissions(HMMEmissions):
 
     def m_step(self, params, props, batch_stats, m_step_state):
         """Perform the M-step of the EM algorithm."""
-        nig_prior = NormalInverseGamma(loc=self.emission_prior_mean,
-                                       mean_concentration=self.emission_prior_mean_conc,
-                                       concentration=self.emission_prior_conc,
-                                       scale=self.emission_prior_scale)
+        if ensure_all_or_none_trainable(props):
+            nig_prior = NormalInverseGamma(loc=self.emission_prior_mean,
+                                           mean_concentration=self.emission_prior_mean_conc,
+                                           concentration=self.emission_prior_conc,
+                                           scale=self.emission_prior_scale)
 
-        def _single_m_step(stats):
-            """Perform the M-step for a single state."""
-            # Find the posterior parameters of the NIG distribution
-            posterior = nig_posterior_update(nig_prior, (stats['sum_x'], stats['sum_xsq'], stats['sum_w']))
-            return posterior.mode()
+            def _single_m_step(stats):
+                """Perform the M-step for a single state."""
+                # Find the posterior parameters of the NIG distribution
+                posterior = nig_posterior_update(nig_prior, (stats['sum_x'], stats['sum_xsq'], stats['sum_w']))
+                return posterior.mode()
 
-        emission_stats = pytree_sum(batch_stats, axis=0)
-        vars, means = vmap(_single_m_step)(emission_stats)
-        scale_diags = jnp.sqrt(vars)
-        params = params._replace(means=means, scale_diags=scale_diags)
+            emission_stats = pytree_sum(batch_stats, axis=0)
+            vars, means = vmap(_single_m_step)(emission_stats)
+            scale_diags = jnp.sqrt(vars)
+            params = params._replace(means=means, scale_diags=scale_diags)
         return params, m_step_state
 
 
@@ -582,19 +577,20 @@ class SharedCovarianceGaussianHMMEmissions(HMMEmissions):
             m_step_state: Any
         ) -> Tuple[ParamsSharedCovarianceGaussianHMMEmissions, Any]:
         """Perform the M-step of the EM algorithm."""
-        mu0 = self.emission_prior_mean
-        kappa0 = self.emission_prior_conc
-        Psi0 = self.emission_prior_scale
-        nu0 = self.emission_prior_df
+        if ensure_all_or_none_trainable(props):
+            mu0 = self.emission_prior_mean
+            kappa0 = self.emission_prior_conc
+            Psi0 = self.emission_prior_scale
+            nu0 = self.emission_prior_df
 
-        emission_stats = pytree_sum(batch_stats, axis=0)
-        sum_T = emission_stats['sum_T'] + nu0 + self.num_states + self.emission_dim + 1
-        sum_w = emission_stats['sum_w'] + kappa0
-        sum_x = emission_stats['sum_x'] + kappa0 * mu0
-        sum_xxT = emission_stats['sum_xxT'] + Psi0 + kappa0 * jnp.outer(mu0, mu0)
-        means = jnp.einsum('ki,k->ki', sum_x, 1/sum_w)
-        cov = (sum_xxT - jnp.einsum('ki,kj,k->ij', sum_x, sum_x, 1/sum_w)) / sum_T
-        params = params._replace(means=means, cov=cov)
+            emission_stats = pytree_sum(batch_stats, axis=0)
+            sum_T = emission_stats['sum_T'] + nu0 + self.num_states + self.emission_dim + 1
+            sum_w = emission_stats['sum_w'] + kappa0
+            sum_x = emission_stats['sum_x'] + kappa0 * mu0
+            sum_xxT = emission_stats['sum_xxT'] + Psi0 + kappa0 * jnp.outer(mu0, mu0)
+            means = jnp.einsum('ki,k->ki', sum_x, 1/sum_w)
+            cov = (sum_xxT - jnp.einsum('ki,kj,k->ij', sum_x, sum_x, 1/sum_w)) / sum_T
+            params = params._replace(means=means, cov=cov)
         return params, m_step_state
 
 
