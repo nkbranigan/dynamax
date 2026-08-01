@@ -5,6 +5,7 @@ import optax
 import tensorflow_probability.substrates.jax.bijectors as tfb
 
 from dynamax.parameters import ParameterProperties, to_unconstrained, from_unconstrained, log_det_jac_constrain
+from dynamax.utils.utils import has_tpu
 from jax import jit, value_and_grad, lax
 from jax.tree_util import tree_map, tree_leaves
 from jaxtyping import Float, Array
@@ -132,7 +133,8 @@ def test_parameter_constrained():
     assert jnp.allclose(params.initial.probs, original_params.initial.probs)
     assert not jnp.allclose(params.transitions.transition_matrix, original_params.transitions.transition_matrix)
     assert not jnp.allclose(params.emissions.means, original_params.emissions.means)
-    assert jnp.allclose(params.emissions.scales, original_params.emissions.scales)
+    assert jnp.allclose(params.emissions.scales, original_params.emissions.scales,
+                        atol=1e-3 if has_tpu() else 1e-8)
 
 
 def test_logdet_jacobian():

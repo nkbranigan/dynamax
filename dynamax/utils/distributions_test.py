@@ -15,6 +15,7 @@ from dynamax.utils.distributions import MatrixNormalInverseWishart
 from dynamax.utils.distributions import MatrixNormalPrecision
 from dynamax.utils.distributions import NormalInverseGamma
 from dynamax.utils.distributions import NormalInverseWishart
+from dynamax.utils.utils import has_tpu
 
 tfd = tfp.distributions
 tfb = tfp.bijectors
@@ -71,8 +72,10 @@ def test_inverse_wishart_variance_vectorization():
        [-0.8869951,  5.07704  , -0.8494578],
        [-0.9199044, -0.8494578,  4.1288185]], dtype=jnp.float32)
     𝜈2 = 8.0  # >p + 3
-    assert all(jnp.linalg.eigvals(Ψ1) > 0)
-    assert all(jnp.linalg.eigvals(Ψ2) > 0)
+    assert jnp.allclose(Ψ1, Ψ1.T)  # eigvalsh assumes symmetry.
+    assert jnp.allclose(Ψ2, Ψ2.T)
+    assert all(jnp.linalg.eigvalsh(Ψ1) > 0)
+    assert all(jnp.linalg.eigvalsh(Ψ2) > 0)
 
     # Make a (2, 1) batch shape to test vectorization over >1 leading axis.
     𝜈 = jnp.stack([𝜈1, 𝜈2]) # Shape: (2,)
@@ -95,7 +98,8 @@ def test_inverse_wishart_sample_non_diagonal_scale(n_samples: int = 10_000, num_
     Ψ = jnp.array([[20.712932, 25.124634],
         [25.124634, 32.814785]], dtype=jnp.float32)  # k x k
     Ψ_diag = jnp.diagonal(Ψ)
-    assert all(jnp.linalg.eigvals(Ψ) > 0)  # Is positive definite.
+    assert jnp.allclose(Ψ, Ψ.T)  # eigvalsh assumes symmetry.
+    assert all(jnp.linalg.eigvalsh(Ψ) > 0)  # Is positive definite.
 
     iw = InverseWishart(df=𝜈, scale=Ψ)
     Σs = iw.sample(sample_shape=n_samples, seed=jr.key(42))
@@ -187,7 +191,7 @@ def test_matrix_normal_inverse_wishart_log_prob(
     lp_mn = jnp.array([matrix_normal.logpdf(m, loc, sigma, jnp.linalg.inv(col_precision)) \
                        for m, sigma in zip(Matrix_samples, Sigma_samples)])
 
-    assert jnp.allclose(mniw_log_probs, lp_iw + lp_mn)
+    assert jnp.allclose(mniw_log_probs, lp_iw + lp_mn, atol=1e-3 if has_tpu() else 1e-8)
     assert jnp.allclose(mniw_probs, jnp.exp(lp_iw + lp_mn))
 
 

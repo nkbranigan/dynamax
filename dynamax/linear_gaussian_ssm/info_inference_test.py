@@ -14,7 +14,7 @@ from dynamax.utils.utils import has_tpu
 
 # Use lower tolerance for TPU tests.
 if has_tpu():
-    allclose = partial(jnp.allclose, atol=1e-1)
+    allclose = partial(jnp.allclose, atol=1e-3)
 else:
     allclose = partial(jnp.allclose, atol=1e-4)
     
