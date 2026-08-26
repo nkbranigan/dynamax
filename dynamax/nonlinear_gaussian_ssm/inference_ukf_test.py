@@ -10,7 +10,7 @@ from dynamax.utils.utils import has_tpu
 from functools import partial
 
 if has_tpu():
-    allclose = partial(jnp.allclose, atol=1e-1)
+    allclose = partial(jnp.allclose, atol=1e-3)
 else:
     allclose = partial(jnp.allclose, atol=1e-4)
 

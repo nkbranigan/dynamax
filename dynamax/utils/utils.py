@@ -2,7 +2,6 @@
 Utility functions for the library.
 """
 import jax
-import jaxlib
 import jax.numpy as jnp
 import jax.random as jr
 
@@ -16,10 +15,7 @@ from jax.scipy.linalg import cho_factor, cho_solve
 
 def has_tpu():
     """Check if the current device is a TPU."""
-    try:
-        return isinstance(jax.devices()[0], jaxlib.xla_extension.TpuDevice)
-    except:
-        return False
+    return jax.default_backend() == "tpu"
 
 
 @jit

@@ -15,7 +15,7 @@ from jax import random as jr
 
 # Use different tolerance threshold for TPU
 if has_tpu():
-    allclose = partial(jnp.allclose, atol=1e-1)
+    allclose = partial(jnp.allclose, atol=1e-3)
 else:
     allclose = partial(jnp.allclose, atol=1e-4)
 

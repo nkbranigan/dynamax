@@ -14,7 +14,7 @@ from jax import vmap
 
 if has_tpu():
     # TPU has very poor numerical stability
-    allclose = partial(jnp.allclose, atol=1e-1)
+    allclose = partial(jnp.allclose, atol=1e-3)
 else:
     allclose = partial(jnp.allclose, atol=1e-4)
 
