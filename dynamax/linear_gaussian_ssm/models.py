@@ -18,7 +18,7 @@ from dynamax.ssm import SSM
 from dynamax.linear_gaussian_ssm.inference import lgssm_joint_sample, lgssm_filter, lgssm_smoother, lgssm_posterior_sample
 from dynamax.linear_gaussian_ssm.inference import ParamsLGSSM, ParamsLGSSMInitial, ParamsLGSSMDynamics, ParamsLGSSMEmissions
 from dynamax.linear_gaussian_ssm.inference import PosteriorGSSMFiltered, PosteriorGSSMSmoothed
-from dynamax.parameters import ParameterProperties
+from dynamax.parameters import ParameterProperties, ensure_all_or_none_trainable
 from dynamax.types import PRNGKeyT, Scalar
 from dynamax.utils.bijectors import RealToPSDBijector
 from dynamax.utils.distributions import MatrixNormalInverseWishart as MNIW
@@ -459,51 +459,48 @@ class LinearGaussianSSM(SSM):
                -> Tuple[ParamsLGSSM, Any]:
         """Perform the M-step of the EM algorithm.
 
-        Note: This function currently ignores any `trainable` constraints specified
-        in the `props` argument.
-        
         Args:
             params: model parameters.
             props: parameter properties.
             batch_stats: expected sufficient statistics.
             m_step_state: state for the M-step.
-        
+
         Returns:
             updated model parameters and updated M-step state.
         """
+        if ensure_all_or_none_trainable(props, what="parameters"):
+            def fit_linear_regression(ExxT, ExyT, EyyT, N):
+                """
+                Solve a linear regression given sufficient statistics
+                """
+                W = psd_solve(ExxT, ExyT).T
+                Sigma = (EyyT - W @ ExyT - ExyT.T @ W.T + W @ ExxT @ W.T) / N
+                return W, Sigma
 
-        def fit_linear_regression(ExxT, ExyT, EyyT, N):
-            """
-            Solve a linear regression given sufficient statistics
-            """
-            W = psd_solve(ExxT, ExyT).T
-            Sigma = (EyyT - W @ ExyT - ExyT.T @ W.T + W @ ExxT @ W.T) / N
-            return W, Sigma
+            # Sum the statistics across all batches
+            stats = tree_map(partial(jnp.sum, axis=0), batch_stats)
+            init_stats, dynamics_stats, emission_stats = stats
 
-        # Sum the statistics across all batches
-        stats = tree_map(partial(jnp.sum, axis=0), batch_stats)
-        init_stats, dynamics_stats, emission_stats = stats
+            # Perform MLE estimation jointly
+            sum_x0, sum_x0x0T, N = init_stats
+            S = (sum_x0x0T - jnp.outer(sum_x0, sum_x0)) / N
+            m = sum_x0 / N
 
-        # Perform MLE estimation jointly
-        sum_x0, sum_x0x0T, N = init_stats
-        S = (sum_x0x0T - jnp.outer(sum_x0, sum_x0)) / N
-        m = sum_x0 / N
+            FB, Q = fit_linear_regression(*dynamics_stats)
+            F = FB[:, :self.state_dim]
+            B, b = (FB[:, self.state_dim:-1], FB[:, -1]) if self.has_dynamics_bias \
+                else (FB[:, self.state_dim:], None)
 
-        FB, Q = fit_linear_regression(*dynamics_stats)
-        F = FB[:, :self.state_dim]
-        B, b = (FB[:, self.state_dim:-1], FB[:, -1]) if self.has_dynamics_bias \
-            else (FB[:, self.state_dim:], None)
+            HD, R = fit_linear_regression(*emission_stats)
+            H = HD[:, :self.state_dim]
+            D, d = (HD[:, self.state_dim:-1], HD[:, -1]) if self.has_emissions_bias \
+                else (HD[:, self.state_dim:], None)
 
-        HD, R = fit_linear_regression(*emission_stats)
-        H = HD[:, :self.state_dim]
-        D, d = (HD[:, self.state_dim:-1], HD[:, -1]) if self.has_emissions_bias \
-            else (HD[:, self.state_dim:], None)
-
-        params = ParamsLGSSM(
-            initial=ParamsLGSSMInitial(mean=m, cov=S),
-            dynamics=ParamsLGSSMDynamics(weights=F, bias=b, input_weights=B, cov=Q),
-            emissions=ParamsLGSSMEmissions(weights=H, bias=d, input_weights=D, cov=R)
-        )
+            params = ParamsLGSSM(
+                initial=ParamsLGSSMInitial(mean=m, cov=S),
+                dynamics=ParamsLGSSMDynamics(weights=F, bias=b, input_weights=B, cov=Q),
+                emissions=ParamsLGSSMEmissions(weights=H, bias=d, input_weights=D, cov=R)
+            )
         return params, m_step_state
 
 
@@ -603,9 +600,6 @@ class LinearGaussianConjugateSSM(LinearGaussianSSM):
                batch_stats: SuffStatsLGSSM,
                m_step_state: Any):
         """Perform the M-step of the EM algorithm.
-        
-        Note: This function currently ignores any `trainable` constraints specified
-        in the `props` argument.
 
         Args:
             params: model parameters.
@@ -616,31 +610,32 @@ class LinearGaussianConjugateSSM(LinearGaussianSSM):
         Returns:
             updated model parameters and updated M-step state.
         """
-        # Sum the statistics across all batches
-        stats = tree_map(partial(jnp.sum, axis=0), batch_stats)
-        init_stats, dynamics_stats, emission_stats = stats
+        if ensure_all_or_none_trainable(props, what="parameters"):
+            # Sum the statistics across all batches
+            stats = tree_map(partial(jnp.sum, axis=0), batch_stats)
+            init_stats, dynamics_stats, emission_stats = stats
 
-        # Perform MAP estimation jointly
-        initial_posterior = niw_posterior_update(self.initial_prior, init_stats)
-        S, m = initial_posterior.mode()
+            # Perform MAP estimation jointly
+            initial_posterior = niw_posterior_update(self.initial_prior, init_stats)
+            S, m = initial_posterior.mode()
 
-        dynamics_posterior = mniw_posterior_update(self.dynamics_prior, dynamics_stats)
-        Q, FB = dynamics_posterior.mode()
-        F = FB[:, :self.state_dim]
-        B, b = (FB[:, self.state_dim:-1], FB[:, -1]) if self.has_dynamics_bias \
-            else (FB[:, self.state_dim:], jnp.zeros(self.state_dim))
+            dynamics_posterior = mniw_posterior_update(self.dynamics_prior, dynamics_stats)
+            Q, FB = dynamics_posterior.mode()
+            F = FB[:, :self.state_dim]
+            B, b = (FB[:, self.state_dim:-1], FB[:, -1]) if self.has_dynamics_bias \
+                else (FB[:, self.state_dim:], jnp.zeros(self.state_dim))
 
-        emission_posterior = mniw_posterior_update(self.emission_prior, emission_stats)
-        R, HD = emission_posterior.mode()
-        H = HD[:, :self.state_dim]
-        D, d = (HD[:, self.state_dim:-1], HD[:, -1]) if self.has_emissions_bias \
-            else (HD[:, self.state_dim:], jnp.zeros(self.emission_dim))
+            emission_posterior = mniw_posterior_update(self.emission_prior, emission_stats)
+            R, HD = emission_posterior.mode()
+            H = HD[:, :self.state_dim]
+            D, d = (HD[:, self.state_dim:-1], HD[:, -1]) if self.has_emissions_bias \
+                else (HD[:, self.state_dim:], jnp.zeros(self.emission_dim))
 
-        params = ParamsLGSSM(
-            initial=ParamsLGSSMInitial(mean=m, cov=S),
-            dynamics=ParamsLGSSMDynamics(weights=F, bias=b, input_weights=B, cov=Q),
-            emissions=ParamsLGSSMEmissions(weights=H, bias=d, input_weights=D, cov=R)
-        )
+            params = ParamsLGSSM(
+                initial=ParamsLGSSMInitial(mean=m, cov=S),
+                dynamics=ParamsLGSSMDynamics(weights=F, bias=b, input_weights=B, cov=Q),
+                emissions=ParamsLGSSMEmissions(weights=H, bias=d, input_weights=D, cov=R)
+            )
         return params, m_step_state
 
     def fit_blocked_gibbs(self,

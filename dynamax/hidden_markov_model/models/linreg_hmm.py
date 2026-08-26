@@ -12,7 +12,7 @@ from dynamax.hidden_markov_model.inference import HMMPosterior
 from dynamax.hidden_markov_model.models.abstractions import HMM, HMMEmissions, HMMParameterSet, HMMPropertySet
 from dynamax.hidden_markov_model.models.initial import StandardHMMInitialState, ParamsStandardHMMInitialState
 from dynamax.hidden_markov_model.models.transitions import StandardHMMTransitions, ParamsStandardHMMTransitions
-from dynamax.parameters import ParameterProperties
+from dynamax.parameters import ParameterProperties, ensure_all_or_none_trainable
 from dynamax.types import Scalar
 from dynamax.utils.utils import pytree_sum
 from dynamax.utils.bijectors import RealToPSDBijector
@@ -157,32 +157,32 @@ class LinearRegressionHMMEmissions(HMMEmissions):
             m_step_state: Any
     ) -> Tuple[ParamsLinearRegressionHMMEmissions, Any]:
         """Perform the M-step of the EM algorithm."""
-        
-        def _single_m_step(stats):
-            """Perform the M-step for a single state."""
-            sum_w = stats['sum_w']
-            sum_x = stats['sum_x']
-            sum_y = stats['sum_y']
-            sum_xxT = stats['sum_xxT']
-            sum_xyT = stats['sum_xyT']
-            sum_yyT = stats['sum_yyT']
+        if ensure_all_or_none_trainable(props):
+            def _single_m_step(stats):
+                """Perform the M-step for a single state."""
+                sum_w = stats['sum_w']
+                sum_x = stats['sum_x']
+                sum_y = stats['sum_y']
+                sum_xxT = stats['sum_xxT']
+                sum_xyT = stats['sum_xyT']
+                sum_yyT = stats['sum_yyT']
 
-            # Make block matrices for stacking features (x) and bias (1)
-            sum_x1x1T = jnp.block(
-                [[sum_xxT,                   jnp.expand_dims(sum_x, 1)],
-                 [jnp.expand_dims(sum_x, 0), jnp.expand_dims(sum_w, (0, 1))]]
-            )
-            sum_x1yT = jnp.vstack([sum_xyT, sum_y])
+                # Make block matrices for stacking features (x) and bias (1)
+                sum_x1x1T = jnp.block(
+                    [[sum_xxT,                   jnp.expand_dims(sum_x, 1)],
+                     [jnp.expand_dims(sum_x, 0), jnp.expand_dims(sum_w, (0, 1))]]
+                )
+                sum_x1yT = jnp.vstack([sum_xyT, sum_y])
 
-            # Solve for the optimal A, b, and Sigma
-            Ab = jnp.linalg.solve(sum_x1x1T, sum_x1yT).T
-            Sigma = 1 / sum_w * (sum_yyT - Ab @ sum_x1yT)
-            Sigma = 0.5 * (Sigma + Sigma.T)                 # for numerical stability
-            return Ab[:, :-1], Ab[:, -1], Sigma
+                # Solve for the optimal A, b, and Sigma
+                Ab = jnp.linalg.solve(sum_x1x1T, sum_x1yT).T
+                Sigma = 1 / sum_w * (sum_yyT - Ab @ sum_x1yT)
+                Sigma = 0.5 * (Sigma + Sigma.T)                 # for numerical stability
+                return Ab[:, :-1], Ab[:, -1], Sigma
 
-        emission_stats = pytree_sum(batch_stats, axis=0)
-        As, bs, Sigmas = vmap(_single_m_step)(emission_stats)
-        params = params._replace(weights=As, biases=bs, covs=Sigmas)
+            emission_stats = pytree_sum(batch_stats, axis=0)
+            As, bs, Sigmas = vmap(_single_m_step)(emission_stats)
+            params = params._replace(weights=As, biases=bs, covs=Sigmas)
         return params, m_step_state
 
 

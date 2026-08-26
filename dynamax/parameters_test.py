@@ -2,9 +2,11 @@
 import copy
 import jax.numpy as jnp
 import optax
+import pytest
 import tensorflow_probability.substrates.jax.bijectors as tfb
 
 from dynamax.parameters import ParameterProperties, to_unconstrained, from_unconstrained, log_det_jac_constrain
+from dynamax.parameters import trainable_flags, ensure_all_or_none_trainable
 from jax import jit, value_and_grad, lax
 from jax.tree_util import tree_map, tree_leaves
 from jaxtyping import Float, Array
@@ -45,6 +47,21 @@ def make_params():
         emissions=EmissionsParams(means=ParameterProperties(), scales=ParameterProperties(constrainer=tfb.Softplus(), trainable=False))
     )
     return params, props
+
+
+def test_trainable_flags_helpers():
+    """Test trainable_flags and ensure_all_or_none_trainable on nested props."""
+    _, props = make_params()
+
+    # The flags of every ParameterProperties in the (nested) PyTree, in order.
+    # tree_leaves must stop at ParameterProperties, which flatten to zero children.
+    assert trainable_flags(props) == [False, True, True, False]
+
+    # All trainable -> True, all frozen -> False, mixed -> NotImplementedError
+    assert ensure_all_or_none_trainable(props.transitions)
+    assert not ensure_all_or_none_trainable(props.initial)
+    with pytest.raises(NotImplementedError):
+        ensure_all_or_none_trainable(props.emissions)
 
 
 def test_parameter_tofrom_unconstrained():
