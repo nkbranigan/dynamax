@@ -3,9 +3,9 @@ Helpers for managing parameters and their properties as PyTrees.
 """
 import jax.numpy as jnp
 from jax import lax
-from jax.tree_util import tree_reduce, tree_map, register_pytree_node_class
+from jax.tree_util import tree_reduce, tree_map, tree_leaves, register_pytree_node_class
 import tensorflow_probability.substrates.jax.bijectors as tfb
-from typing import Optional, runtime_checkable
+from typing import List, Optional, runtime_checkable
 from typing_extensions import Protocol
 
 from dynamax.types import Scalar
@@ -55,6 +55,37 @@ class ParameterProperties:
     def __repr__(self):
         """Return a string representation of the PyTree."""
         return f"ParameterProperties(trainable={self.trainable}, constrainer={self.constrainer})"
+
+
+def trainable_flags(props: PropertySet) -> List[bool]:
+    """List the ``trainable`` flag of every :class:`ParameterProperties` in ``props``.
+
+    Args:
+        props: (nested) named tuple whose leaf values are ParameterProperties.
+
+    Returns:
+        flags: list of boolean ``trainable`` flags, one per property.
+    """
+    is_leaf = lambda node: isinstance(node, (ParameterProperties,))
+    return [prop.trainable for prop in tree_leaves(props, is_leaf=is_leaf)]
+
+
+def ensure_all_or_none_trainable(props: PropertySet, what: str = "emission parameters") -> bool:
+    """Raise if some but not all of the properties in ``props`` are frozen.
+
+    Args:
+        props: (nested) named tuple whose leaf values are ParameterProperties.
+        what: name for the parameters in ``props``.
+
+    Returns:
+        all_trainable: True if all properties are trainable, False if all are frozen.
+    """
+    flags = trainable_flags(props)
+    if any(flags) and not all(flags):
+        raise NotImplementedError(
+            f"This model's fit_em() does not support fitting some but not all of the "
+            f"{what}; set them all trainable or all frozen, or use fit_sgd().")
+    return all(flags)
 
 
 def to_unconstrained(params: ParameterSet, props: PropertySet) -> ParameterSet:

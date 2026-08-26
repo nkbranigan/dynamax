@@ -17,7 +17,7 @@ from jax import vmap
 
 allclose = partial(jnp.allclose, atol=1e-3)    
 
-def make_static_lgssm_params():
+def make_static_lgssm_params(initial_mean=None):
     """Create a static LGSSM with fixed parameters."""
     dt = 0.1
     F = jnp.eye(4) + dt * jnp.eye(4, k=2)
@@ -27,7 +27,7 @@ def make_static_lgssm_params():
                          
     H = jnp.eye(2, 4)
     R = 0.5 ** 2 * jnp.eye(2)
-    μ0 = jnp.array([0.,0.,1.,-1.])
+    μ0 = jnp.array([0.,0.,1.,-1.]) if initial_mean is None else initial_mean
     Σ0 = jnp.eye(4)
 
     latent_dim = 4
@@ -150,6 +150,52 @@ class TestParallelLGSSMSmoother:
         par_diag_mll = self.parallel_posterior_diag.marginal_loglik
         assert jnp.allclose(ser_mll, par_mll, atol=1e-4 * self.num_timesteps)
         assert jnp.allclose(ser_mll, par_diag_mll, atol=1e-4 * self.num_timesteps)
+
+
+class TestParallelLGSSMSmootherWithLargeInitMean:
+    """ Compare parallel and serial lgssm smoothing implementations.
+    
+    Regression test for https://github.com/probml/dynamax/issues/423.
+    """
+    
+    num_timesteps = 50
+    key = jr.PRNGKey(1)
+
+    params, lgssm = make_static_lgssm_params(initial_mean=jnp.array([100.,0.,1.,-1.]))   
+    params_diag = flatten_diagonal_emission_cov(params)
+    _, emissions = lgssm_joint_sample(params, key, num_timesteps)
+
+    serial_posterior = serial_lgssm_smoother(params, emissions)
+    parallel_posterior = parallel_lgssm_smoother(params, emissions)
+    parallel_posterior_diag = parallel_lgssm_smoother(params_diag, emissions)
+
+    def test_filtered_means(self):
+        """Check if filtered means are close."""
+        assert allclose(self.serial_posterior.filtered_means, self.parallel_posterior.filtered_means)
+        assert allclose(self.serial_posterior.filtered_means, self.parallel_posterior_diag.filtered_means)
+
+    def test_filtered_covariances(self):
+        """Check if filtered covariances are close."""
+        assert allclose(self.serial_posterior.filtered_covariances, self.parallel_posterior.filtered_covariances)
+        assert allclose(self.serial_posterior.filtered_covariances, self.parallel_posterior_diag.filtered_covariances)
+
+    def test_smoothed_means(self):
+        """Check if smoothed means are close."""
+        assert allclose(self.serial_posterior.smoothed_means, self.parallel_posterior.smoothed_means)
+        assert allclose(self.serial_posterior.smoothed_means, self.parallel_posterior_diag.smoothed_means)
+
+    def test_smoothed_covariances(self):
+        """Check if smoothed covariances are close."""
+        assert allclose(self.serial_posterior.smoothed_covariances, self.parallel_posterior.smoothed_covariances)
+        assert allclose(self.serial_posterior.smoothed_covariances, self.parallel_posterior_diag.smoothed_covariances)
+
+    def test_marginal_loglik(self):
+        """Check if marginal log likelihoods are close."""
+        ser_mll = self.serial_posterior.marginal_loglik
+        par_mll = self.parallel_posterior.marginal_loglik
+        par_diag_mll = self.parallel_posterior_diag.marginal_loglik
+        assert jnp.allclose(ser_mll, par_mll, atol=1e-2 * self.num_timesteps)
+        assert jnp.allclose(ser_mll, par_diag_mll, atol=1e-2 * self.num_timesteps)
 
 
 class TestParallelLGSSMSmootherWithInputs:
