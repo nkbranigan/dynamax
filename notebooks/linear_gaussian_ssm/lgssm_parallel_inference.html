@@ -448,7 +448,7 @@ we have a GPU device. Rather than running a Kalman filter/smoother sequentially 
 <span class="k">try</span><span class="p">:</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">dynamax</span>
 <span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;installing dynamax&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">'installing dynamax'</span><span class="p">)</span>
     <span class="o">%</span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">q</span> <span class="n">dynamax</span><span class="p">[</span><span class="n">notebooks</span><span class="p">]</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">dynamax</span>
 </pre></div>
@@ -475,7 +475,7 @@ we have a GPU device. Rather than running a Kalman filter/smoother sequentially 
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">devices</span><span class="p">())</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">devices</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">platform</span><span class="p">)</span>
-<span class="k">if</span> <span class="n">jax</span><span class="o">.</span><span class="n">devices</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">platform</span> <span class="o">==</span> <span class="s1">&#39;cpu&#39;</span><span class="p">:</span>
+<span class="k">if</span> <span class="n">jax</span><span class="o">.</span><span class="n">devices</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">platform</span> <span class="o">==</span> <span class="s1">'cpu'</span><span class="p">:</span>
     <span class="n">cpu_mode</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="k">else</span><span class="p">:</span>
     <span class="n">cpu_mode</span> <span class="o">=</span> <span class="kc">False</span>
@@ -567,9 +567,9 @@ cpu
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">emissions</span><span class="o">.</span><span class="n">T</span><span class="p">,</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;observations&quot;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">ssm_posterior</span><span class="o">.</span><span class="n">filtered_means</span><span class="p">[:,:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;serial filtering&quot;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">parallel_posterior</span><span class="o">.</span><span class="n">filtered_means</span><span class="p">[:,:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="s2">&quot;--k&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;parallel filtering&quot;</span><span class="p">);</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">emissions</span><span class="o">.</span><span class="n">T</span><span class="p">,</span><span class="s1">'.'</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"observations"</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">ssm_posterior</span><span class="o">.</span><span class="n">filtered_means</span><span class="p">[:,:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"serial filtering"</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">parallel_posterior</span><span class="o">.</span><span class="n">filtered_means</span><span class="p">[:,:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="s2">"--k"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"parallel filtering"</span><span class="p">);</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">();</span>
 </pre></div>
 </div>
@@ -581,9 +581,9 @@ cpu
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">emissions</span><span class="o">.</span><span class="n">T</span><span class="p">,</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;observations&quot;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">ssm_posterior</span><span class="o">.</span><span class="n">smoothed_means</span><span class="p">[:,:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;serial smoothing&quot;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">parallel_posterior</span><span class="o">.</span><span class="n">smoothed_means</span><span class="p">[:,:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="s2">&quot;--k&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;parallel smoothing&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">emissions</span><span class="o">.</span><span class="n">T</span><span class="p">,</span><span class="s1">'.'</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"observations"</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">ssm_posterior</span><span class="o">.</span><span class="n">smoothed_means</span><span class="p">[:,:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s2">"serial smoothing"</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">parallel_posterior</span><span class="o">.</span><span class="n">smoothed_means</span><span class="p">[:,:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="s2">"--k"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"parallel smoothing"</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">();</span>
 </pre></div>
 </div>
@@ -623,7 +623,7 @@ cpu
     <span class="n">end</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
     <span class="n">mean_time</span> <span class="o">=</span> <span class="p">(</span><span class="n">end</span><span class="o">-</span><span class="n">start</span><span class="p">)</span><span class="o">/</span><span class="n">num_repeats</span>
     <span class="n">serial_smoothing_durations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mean_time</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Num timesteps=</span><span class="si">{</span><span class="n">T</span><span class="si">}</span><span class="s2">, </span><span class="se">\t</span><span class="s2"> time serial = </span><span class="si">{</span><span class="n">mean_time</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Num timesteps=</span><span class="si">{</span><span class="n">T</span><span class="si">}</span><span class="s2">, </span><span class="se">\t</span><span class="s2"> time serial = </span><span class="si">{</span><span class="n">mean_time</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     
     <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_repeats</span><span class="p">):</span>
@@ -631,25 +631,21 @@ cpu
     <span class="n">end</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
     <span class="n">mean_time</span> <span class="o">=</span> <span class="p">(</span><span class="n">end</span><span class="o">-</span><span class="n">start</span><span class="p">)</span><span class="o">/</span><span class="n">num_repeats</span>
     <span class="n">parallel_smoothing_durations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mean_time</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Num timesteps=</span><span class="si">{</span><span class="n">T</span><span class="si">}</span><span class="s2">, </span><span class="se">\t</span><span class="s2"> time parallel = </span><span class="si">{</span><span class="n">mean_time</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Num timesteps=</span><span class="si">{</span><span class="n">T</span><span class="si">}</span><span class="s2">, </span><span class="se">\t</span><span class="s2"> time parallel = </span><span class="si">{</span><span class="n">mean_time</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
 <div class="cell_output docutils container">
-<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Num timesteps=100, 	 time serial = 0.41707539558410645
-Num timesteps=100, 	 time parallel = 0.1701807975769043
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Num timesteps=100, 	 time serial = 0.3880925178527832
+Num timesteps=100, 	 time parallel = 0.12953424453735352
 </pre></div>
 </div>
-<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Num timesteps=200, 	 time serial = 0.41100025177001953
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Num timesteps=200, 	 time serial = 0.387836217880249
+Num timesteps=200, 	 time parallel = 0.1451432704925537
 </pre></div>
 </div>
-<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Num timesteps=200, 	 time parallel = 0.2013237476348877
-</pre></div>
-</div>
-<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Num timesteps=500, 	 time serial = 0.4321613311767578
-</pre></div>
-</div>
-<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Num timesteps=500, 	 time parallel = 0.21967530250549316
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Num timesteps=500, 	 time serial = 0.3990786075592041
+Num timesteps=500, 	 time parallel = 0.15709900856018066
 </pre></div>
 </div>
 </div>
@@ -657,11 +653,11 @@ Num timesteps=100, 	 time parallel = 0.1701807975769043
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">Ts</span><span class="p">,</span> <span class="n">serial_smoothing_durations</span><span class="p">,</span> <span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;serial&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">Ts</span><span class="p">,</span> <span class="n">parallel_smoothing_durations</span><span class="p">,</span> <span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;parallel&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">Ts</span><span class="p">,</span> <span class="n">serial_smoothing_durations</span><span class="p">,</span> <span class="s1">'-o'</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'serial'</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">Ts</span><span class="p">,</span> <span class="n">parallel_smoothing_durations</span><span class="p">,</span> <span class="s1">'-o'</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">'parallel'</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">Ts</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;seq. length&quot;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;time per forward pass (s)&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">"seq. length"</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">"time per forward pass (s)"</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
@@ -669,7 +665,7 @@ Num timesteps=100, 	 time parallel = 0.1701807975769043
 </div>
 </div>
 <div class="cell_output docutils container">
-<img alt="../../_images/00a4bdaa0b03ac65c57a63377485c0ff50c7e788df6faa48219e3f382cf426f1.png" src="../../_images/00a4bdaa0b03ac65c57a63377485c0ff50c7e788df6faa48219e3f382cf426f1.png" />
+<img alt="../../_images/b9843e87bd5f899cb0c8212ab99debeafbc3f7b2681fa7fb7593546861283735.png" src="../../_images/b9843e87bd5f899cb0c8212ab99debeafbc3f7b2681fa7fb7593546861283735.png" />
 </div>
 </div>
 </section>
