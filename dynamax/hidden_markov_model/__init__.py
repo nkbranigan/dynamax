@@ -11,6 +11,8 @@ from dynamax.hidden_markov_model.models.logreg_hmm import LogisticRegressionHMM
 from dynamax.hidden_markov_model.models.multinomial_hmm import MultinomialHMM
 from dynamax.hidden_markov_model.models.poisson_hmm import PoissonHMM
 
+from dynamax.hidden_markov_model.cross_validation import cross_validate_num_states
+
 from dynamax.hidden_markov_model.inference import HMMPosterior
 from dynamax.hidden_markov_model.inference import HMMPosteriorFiltered
 from dynamax.hidden_markov_model.inference import hmm_filter
