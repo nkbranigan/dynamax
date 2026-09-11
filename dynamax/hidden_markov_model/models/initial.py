@@ -1,7 +1,7 @@
 """
 This module contains the implementation of the initial distribution of a hidden Markov model.
 """
-from typing import Any, cast, NamedTuple, Optional, Tuple, Union
+from typing import Any, NamedTuple, Optional, Tuple, Union
 import jax.numpy as jnp
 import jax.random as jr
 from jaxtyping import Float, Array
@@ -56,8 +56,12 @@ class StandardHMMInitialState(HMMInitialState):
             if key is None:
                 raise ValueError("key must be provided if initial_probs is not provided.")
             else:
-                this_key, key = jr.split(key)
-                initial_probs = tfd.Dirichlet(self.initial_probs_concentration).sample(seed=this_key)
+                this_key, _ = jr.split(key)
+                initial_probs = jr.dirichlet(
+                    this_key,
+                    self.initial_probs_concentration,
+                    dtype=self.initial_probs_concentration.dtype,
+                )
 
         # Package the results into dictionaries
         params = ParamsStandardHMMInitialState(probs=initial_probs)
@@ -98,4 +102,3 @@ class StandardHMMInitialState(HMMInitialState):
                 probs = tfd.Dirichlet(self.initial_probs_concentration + expected_initial_counts).mode()
             params = params._replace(probs=probs)
         return params, m_step_state
-

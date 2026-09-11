@@ -1,5 +1,6 @@
 """Module for HMM transition models."""
 import jax.numpy as jnp
+import jax.random as jr
 import tensorflow_probability.substrates.jax.distributions as tfd
 import tensorflow_probability.substrates.jax.bijectors as tfb
 
@@ -9,7 +10,7 @@ from dynamax.parameters import ParameterProperties
 from dynamax.types import IntScalar, Scalar
 
 from jaxtyping import Float, Array
-from typing import Any, cast, NamedTuple, Optional, Tuple, Union
+from typing import Any, NamedTuple, Optional, Tuple, Union
 
 
 class ParamsStandardHMMTransitions(NamedTuple):
@@ -71,8 +72,11 @@ class StandardHMMTransitions(HMMTransitions):
             if key is None:
                 raise ValueError("key must be provided if transition_matrix is not provided.")
             else:
-                transition_matrix_sample = tfd.Dirichlet(self.concentration).sample(seed=key)
-                transition_matrix = cast(Float[Array, "num_states num_states"], transition_matrix_sample)
+                transition_matrix = jr.dirichlet(
+                    key,
+                    self.concentration,
+                    dtype=self.concentration.dtype,
+                )
 
         # Package the results into dictionaries
         params = ParamsStandardHMMTransitions(transition_matrix=transition_matrix)
