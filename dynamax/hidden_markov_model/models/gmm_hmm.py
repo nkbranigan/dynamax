@@ -357,10 +357,11 @@ class DiagonalGaussianMixtureHMMEmissions(HMMEmissions):
 
         self.emission_weights_concentration = \
             emission_weights_concentration * jnp.ones(num_components)
-        self.emission_prior_mean = emission_prior_mean
-        self.emission_prior_mean_concentration = emission_prior_mean_concentration
-        self.emission_prior_shape = emission_prior_shape
-        self.emission_prior_scale = emission_prior_scale
+        # Floating scalar priors follow JAX's configured precision, including integer inputs.
+        self.emission_prior_mean = jnp.asarray(emission_prior_mean * 1.0)
+        self.emission_prior_mean_concentration = jnp.asarray(emission_prior_mean_concentration * 1.0)
+        self.emission_prior_shape = jnp.asarray(emission_prior_shape * 1.0)
+        self.emission_prior_scale = jnp.asarray(emission_prior_scale * 1.0)
 
     @property
     def emission_shape(self) -> Tuple[int]:

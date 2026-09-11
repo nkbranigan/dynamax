@@ -6,6 +6,7 @@ import jax.random as jr
 import pytest
 
 from jax import vmap
+from jax.experimental import enable_x64
 from jax.tree_util import tree_leaves, tree_map
 from dynamax.utils.utils import monotonically_increasing
 
@@ -40,6 +41,35 @@ def test_sample_and_fit(cls, kwargs, inputs):
     fitted_params, lps = hmm.fit_em(params, param_props, emissions, inputs=inputs, num_iters=10)
     assert monotonically_increasing(lps, atol=1e-2, rtol=1e-2)
     fitted_params, lps = hmm.fit_sgd(params, param_props, emissions, inputs=inputs, num_epochs=10)
+
+
+@pytest.mark.parametrize("use_x64", [False, True])
+@pytest.mark.parametrize("cls, kwargs", [
+    (models.BernoulliHMM, {}),
+    (models.PoissonHMM, {}),
+    (models.DiagonalGaussianMixtureHMM, dict(num_components=2)),
+    (models.BernoulliHMM, dict(emission_prior_concentration0=2, emission_prior_concentration1=2)),
+    (models.PoissonHMM, dict(emission_prior_concentration=2, emission_prior_rate=1)),
+    (models.DiagonalGaussianMixtureHMM, dict(num_components=2, emission_prior_mean=0,
+        emission_prior_mean_concentration=1, emission_prior_shape=2, emission_prior_scale=1)),
+])
+def test_scalar_prior_initialization_preserves_em_dtype(cls, kwargs, use_x64):
+    """Default and integer scalar priors follow JAX precision throughout EM."""
+    with enable_x64(use_x64):
+        hmm = cls(num_states=2, emission_dim=2, **kwargs)
+        params, props = hmm.initialize(jr.PRNGKey(0))
+        expected_dtype = jnp.asarray(0.0).dtype
+        assert all(x.dtype == expected_dtype for x in tree_leaves(params))
+        if cls is models.DiagonalGaussianMixtureHMM:
+            emissions = jr.normal(jr.PRNGKey(1), (12, 2))
+        else:
+            emissions = jnp.arange(24).reshape(12, 2) % 2
+
+        fitted_params, lps = hmm.fit_em(
+            params, props, emissions, num_iters=2, verbose=False)
+
+        assert all(x.dtype == expected_dtype for x in tree_leaves(fitted_params))
+        assert all(jnp.all(jnp.isfinite(x)) for x in tree_leaves((fitted_params, lps)))
 
 
 # Models whose closed-form emission m_step updates its parameters jointly, so they

@@ -104,6 +104,11 @@ class LinearGaussianSSM(SSM):
                    -> Tuple[ParamsLGSSM, ParamsLGSSM]:
         r"""Initialize model parameters that are set to None, and their corresponding properties.
 
+        When learning parameters with :meth:`fit_em`, supply time-invariant
+        arrays and full covariance matrices, as returned by the M-step. For a
+        diagonal covariance, use ``jnp.diag(variances)``. Leave disabled biases
+        as ``None``. Supplied parameter values are preserved by initialization.
+
         Args:
             key: Random number key. Defaults to jr.PRNGKey(0).
             initial_mean: parameter $m$. Defaults to None.
@@ -623,13 +628,13 @@ class LinearGaussianConjugateSSM(LinearGaussianSSM):
             Q, FB = dynamics_posterior.mode()
             F = FB[:, :self.state_dim]
             B, b = (FB[:, self.state_dim:-1], FB[:, -1]) if self.has_dynamics_bias \
-                else (FB[:, self.state_dim:], jnp.zeros(self.state_dim))
+                else (FB[:, self.state_dim:], None)
 
             emission_posterior = mniw_posterior_update(self.emission_prior, emission_stats)
             R, HD = emission_posterior.mode()
             H = HD[:, :self.state_dim]
             D, d = (HD[:, self.state_dim:-1], HD[:, -1]) if self.has_emissions_bias \
-                else (HD[:, self.state_dim:], jnp.zeros(self.emission_dim))
+                else (HD[:, self.state_dim:], None)
 
             params = ParamsLGSSM(
                 initial=ParamsLGSSMInitial(mean=m, cov=S),

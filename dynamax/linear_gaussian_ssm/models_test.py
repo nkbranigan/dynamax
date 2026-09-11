@@ -37,6 +37,31 @@ def test_sample_and_fit(cls, kwargs, inputs):
     fitted_params, lps = model.fit_sgd(params, param_props, emissions, inputs=inputs, num_epochs=3)
 
 
+@pytest.mark.parametrize("has_dynamics_bias, has_emissions_bias", [
+    (False, False), (False, True), (True, False),
+])
+@pytest.mark.parametrize("verbose, print_every", [(False, 1), (True, 2)])
+def test_conjugate_em_preserves_disabled_biases(
+        has_dynamics_bias, has_emissions_bias, verbose, print_every):
+    """Initialized optional biases keep their representation throughout EM."""
+    model = LinearGaussianConjugateSSM(
+        state_dim=2, emission_dim=2, input_dim=1,
+        has_dynamics_bias=has_dynamics_bias, has_emissions_bias=has_emissions_bias)
+    params, props = model.initialize(jr.PRNGKey(0))
+    inputs = jr.normal(jr.PRNGKey(1), (30, 1))
+    _, emissions = model.sample(params, jr.PRNGKey(2), num_timesteps=30, inputs=inputs)
+
+    fitted_params, lps = model.fit_em(
+        params, props, emissions, inputs=inputs, num_iters=3,
+        verbose=verbose, print_every=print_every)
+
+    assert (fitted_params.dynamics.bias is None) == (not has_dynamics_bias)
+    assert (fitted_params.emissions.bias is None) == (not has_emissions_bias)
+    assert lps.shape == (3,)
+    assert all(jnp.all(jnp.isfinite(x)) for x in tree_leaves((fitted_params, lps)))
+    assert monotonically_increasing(lps)
+
+
 @pytest.mark.parametrize("cls", [LinearGaussianSSM, LinearGaussianConjugateSSM])
 def test_em_partially_frozen_params_raises(cls):
     """
