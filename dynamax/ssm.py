@@ -12,6 +12,7 @@ from functools import partial
 from jax import jit, lax, vmap
 from jax.tree_util import tree_map
 from jaxtyping import Array, Float, Real
+from numbers import Integral
 from tensorflow_probability.substrates.jax import distributions as tfd
 from typing import Optional, Union, Tuple, Any, runtime_checkable
 from typing_extensions import Protocol
@@ -362,7 +363,8 @@ class SSM(ABC):
         inputs: Optional[Union[Float[Array, "num_timesteps input_dim"],
                                Float[Array, "num_batches num_timesteps input_dim"]]]=None,
         num_iters: int=50,
-        verbose: bool=True
+        verbose: bool=True,
+        print_every: int=1,
     ) -> Tuple[ParameterSet, Float[Array, " num_iters"]]:
         r"""Compute parameter MLE/ MAP estimate using Expectation-Maximization (EM).
 
@@ -380,7 +382,17 @@ class SSM(ABC):
             emissions: one or more sequences of emissions
             inputs: one or more sequences of corresponding inputs
             num_iters: number of iterations of EM to run
-            verbose: whether or not to show a progress bar
+            verbose: whether or not to show a progress bar. When ``False``, run all
+                EM iterations in one compiled scan without explicit host
+                synchronization. Progress reporting uses Python: inside an outer
+                ``jit``, updates occur during tracing and are absent on cached
+                executions. Use ``False`` when composing ``fit_em`` with ``jit``
+                or ``vmap``.
+            print_every: number of EM iterations per progress update. Must be a
+                positive integer when ``verbose=True``; ignored otherwise. Each
+                chunk runs as a compiled scan. The progress bar tracks dispatched
+                iterations without waiting for device completion. The final chunk
+                may be shorter.
 
         Returns:
             tuple of new parameters and log likelihoods over the course of EM iterations.
@@ -391,23 +403,48 @@ class SSM(ABC):
         batch_emissions = ensure_array_has_batch_dim(emissions, self.emission_shape)
         batch_inputs = ensure_array_has_batch_dim(inputs, self.inputs_shape)
 
-        @jit
-        def em_step(params, m_step_state):
+        def em_step(carry, _):
             """Perform one EM step."""
+            params, m_step_state = carry
             batch_stats, lls = vmap(partial(self.e_step, params))(batch_emissions, batch_inputs)
             lp = self.log_prior(params) + lls.sum()
             params, m_step_state = self.m_step(params, props, batch_stats, m_step_state)
-            # debug.print('e_step: {x}', x=(batch_stats, lls))
-            # debug.print('m_step{y}', y=params)
-            return params, m_step_state, lp
+            return (params, m_step_state), lp
 
-        log_probs = []
         m_step_state = self.initialize_m_step_state(params, props)
-        pbar = progress_bar(range(num_iters)) if verbose else range(num_iters)
-        for _ in pbar:
-            params, m_step_state, marginal_logprob = em_step(params, m_step_state)
-            log_probs.append(marginal_logprob)
-        return params, jnp.array(log_probs)
+
+        # Unlike a Python loop, `lax.scan` traces its body even when its length is
+        # zero. Preserve the previous behavior of returning without tracing an EM
+        # step when no iterations were requested.
+        if num_iters <= 0:
+            return params, jnp.array([])
+
+        @partial(jit, static_argnames=("length",))
+        def run_chunk(carry, length):
+            return lax.scan(em_step, carry, xs=None, length=length)
+
+        carry = (params, m_step_state)
+        if not verbose:
+            (params, _), log_probs = run_chunk(carry, num_iters)
+            return params, log_probs
+
+        if isinstance(print_every, bool) or not isinstance(print_every, Integral) or print_every < 1:
+            raise ValueError("print_every must be a positive integer when verbose=True.")
+
+        chunk_size = min(print_every, num_iters)
+        log_probs = []
+        pbar = progress_bar(range(num_iters))
+        pbar.update(0)
+        try:
+            for start in range(0, num_iters, chunk_size):
+                length = min(chunk_size, num_iters - start)
+                carry, chunk_log_probs = run_chunk(carry, length)
+                log_probs.append(chunk_log_probs)
+                pbar.update(start + length)
+        except BaseException:
+            pbar.on_interrupt()
+            raise
+        return carry[0], jnp.concatenate(log_probs)
 
     def fit_sgd(
         self,
