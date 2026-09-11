@@ -130,6 +130,11 @@ default to weak priors without any stickiness.
   :show-inheritance:
   :members: initialize, sample, compute_inputs
 
+Model selection
+---------------
+
+.. autofunction:: dynamax.hidden_markov_model.cross_validate_num_states
+
 Low-level inference
 -------------------
 
@@ -228,4 +233,3 @@ Utilities
 =========
 
 .. autofunction:: dynamax.utils.utils.find_permutation
-
