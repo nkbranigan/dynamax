@@ -483,8 +483,8 @@ class LinearGaussianSSM(SSM):
 
             # Perform MLE estimation jointly
             sum_x0, sum_x0x0T, N = init_stats
-            S = (sum_x0x0T - jnp.outer(sum_x0, sum_x0)) / N
             m = sum_x0 / N
+            S = sum_x0x0T / N - jnp.outer(m, m)
 
             FB, Q = fit_linear_regression(*dynamics_stats)
             F = FB[:, :self.state_dim]

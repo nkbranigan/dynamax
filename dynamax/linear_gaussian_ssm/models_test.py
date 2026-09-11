@@ -101,3 +101,47 @@ def test_fit_blocked_gibbs_batched():
     _, y_obs = vmap(partial(model.sample, params, num_timesteps=num_timesteps))(m_keys)
 
     model.fit_blocked_gibbs(next(keys), params, sample_size=6, emissions=y_obs)
+
+
+def _true_params_and_batch(num_seqs, key):
+    """Return a small model, its true parameters and a batch of sequences sampled from them."""
+    I = jnp.eye(2)
+    model = LinearGaussianSSM(state_dim=2, emission_dim=2)
+    params, props = model.initialize(jr.PRNGKey(0), initial_mean=jnp.zeros(2), initial_covariance=I,
+                                     dynamics_weights=0.9 * I, dynamics_covariance=0.1 * I,
+                                     emission_weights=I, emission_covariance=0.5 * I)
+    keys = jr.split(key, num_seqs)
+    emissions = vmap(lambda k: model.sample(params, k, num_timesteps=NUM_TIMESTEPS)[1])(keys)
+    return model, params, props, emissions
+
+
+def test_m_step_batched_initial_covariance():
+    """
+    Regression test: with several sequences, the M-step's initial covariance must be the
+    expected scatter of x_0 around the new initial mean. It used to subtract the mean
+    outer product N times too much, so it went indefinite and EM went NaN.
+    """
+    model, params, props, emissions = _true_params_and_batch(10, jr.PRNGKey(1))
+
+    batch_stats, _ = vmap(partial(model.e_step, params))(emissions, None)
+    new_params, _ = model.m_step(params, props, batch_stats, None)
+
+    posteriors = vmap(partial(model.smoother, params))(emissions)
+    mu0 = posteriors.smoothed_means[:, 0]
+    V0 = posteriors.smoothed_covariances[:, 0]
+    m = mu0.mean(0)
+    S = (V0 + vmap(jnp.outer)(mu0 - m, mu0 - m)).mean(0)
+    assert jnp.allclose(new_params.initial.mean, m, atol=1e-5)
+    assert jnp.allclose(new_params.initial.cov, S, atol=1e-5)
+    assert jnp.all(jnp.linalg.eigvalsh(new_params.initial.cov) > 0)
+
+
+def test_em_batched_from_true_params_is_monotone():
+    """
+    Regression test: EM on a batch of sequences, started from the true parameters,
+    stays finite and never decreases the log probability.
+    """
+    model, params, props, emissions = _true_params_and_batch(5, jr.PRNGKey(1))
+    _, lps = model.fit_em(params, props, emissions, num_iters=10, verbose=False)
+    assert jnp.all(jnp.isfinite(lps))
+    assert monotonically_increasing(lps, rtol=1e-5)
