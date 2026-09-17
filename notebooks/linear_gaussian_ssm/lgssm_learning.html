@@ -592,7 +592,7 @@ y_t \mid z_t, \theta &amp;\sim \mathrm{N}(H z_t, R)
 <div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Text(0.5, 1.02, 'true model')
 </pre></div>
 </div>
-<img alt="../../_images/f4759fb786ca505e16421aa82f4df815fcf1f6de417bd740edbc047ef5d681c5.png" src="../../_images/f4759fb786ca505e16421aa82f4df815fcf1f6de417bd740edbc047ef5d681c5.png" />
+<img alt="../../_images/2919e4bbd5eb75a8bd084cb13470ce284bb109106283b864c682b4bed503ab5e.png" src="../../_images/2919e4bbd5eb75a8bd084cb13470ce284bb109106283b864c682b4bed503ab5e.png" />
 </div>
 </div>
 <p>Now plot the reconstructions under a randomly initialized model. They’re much worse!</p>
@@ -617,7 +617,7 @@ y_t \mid z_t, \theta &amp;\sim \mathrm{N}(H z_t, R)
 <div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Text(0.5, 1.02, 'randomly initialized model')
 </pre></div>
 </div>
-<img alt="../../_images/a5261542d1cfb4e33a138ff6bf1f14e89ba18ed21818012c9daf51ca88854330.png" src="../../_images/a5261542d1cfb4e33a138ff6bf1f14e89ba18ed21818012c9daf51ca88854330.png" />
+<img alt="../../_images/7c2cd8745cde3c89fa307e0f39895a47d9f20deb7242550537b5a48ac85d011e.png" src="../../_images/7c2cd8745cde3c89fa307e0f39895a47d9f20deb7242550537b5a48ac85d011e.png" />
 </div>
 </div>
 </section>
@@ -673,7 +673,7 @@ y_t \mid z_t, \theta &amp;\sim \mathrm{N}(H z_t, R)
 </div>
 </div>
 <div class="cell_output docutils container">
-<img alt="../../_images/2863dbbf3931f680fc79cdc99c225fc311411d10e1b540472bae39bc8bbdf764.png" src="../../_images/2863dbbf3931f680fc79cdc99c225fc311411d10e1b540472bae39bc8bbdf764.png" />
+<img alt="../../_images/967e440f7e00350e0fe59406d96c87ed908862f58647dd9ad6b84771e68cf315.png" src="../../_images/967e440f7e00350e0fe59406d96c87ed908862f58647dd9ad6b84771e68cf315.png" />
 </div>
 </div>
 <p>The marginal log likelihood quickly converges. As with the HMM examples, the likelihood under the estimated parameters is larger than the likelihood under the true parameters that generated the data. This isn’t surprising: EM is finding the parameters <span class="math notranslate nohighlight">\(\hat{\theta}_{\mathsf{MLE}}\)</span>, that maximize the likelihood, and with a short sequence like this, the likelihood <span class="math notranslate nohighlight">\(p(x_{1:T}; \hat{\theta}_{\mathsf{MLE}})\)</span> is almost surely larger than <span class="math notranslate nohighlight">\(p(x_{1:T}; \theta_{\mathsf{true}})\)</span>.</p>
@@ -689,7 +689,7 @@ y_t \mid z_t, \theta &amp;\sim \mathrm{N}(H z_t, R)
 <div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Text(0.5, 1.02, 'fitted model')
 </pre></div>
 </div>
-<img alt="../../_images/5ab08682c6b7d953b7bfce59b520e67c600e26a4f80728f76ef9cda9feee7b41.png" src="../../_images/5ab08682c6b7d953b7bfce59b520e67c600e26a4f80728f76ef9cda9feee7b41.png" />
+<img alt="../../_images/3049b06231c1dacb8a9a5728798fe3e0abbc4323ef5c99810813b8ce66f9a9f8.png" src="../../_images/3049b06231c1dacb8a9a5728798fe3e0abbc4323ef5c99810813b8ce66f9a9f8.png" />
 </div>
 </div>
 <section id="identifiability">
@@ -751,7 +751,7 @@ y_t \mid z_t, \theta &amp;\sim \mathrm{N}(H z_t, R)
 </div>
 </div>
 <div class="cell_output docutils container">
-<img alt="../../_images/4987c481035353259408831feb3bd13e6a9c4f4ffb42ec7f4a2ca6f9d8262712.png" src="../../_images/4987c481035353259408831feb3bd13e6a9c4f4ffb42ec7f4a2ca6f9d8262712.png" />
+<img alt="../../_images/ecd5b70082c1e1e353a496bd8ffc352f31b931c177229b603002ebde86799cc7.png" src="../../_images/ecd5b70082c1e1e353a496bd8ffc352f31b931c177229b603002ebde86799cc7.png" />
 </div>
 </div>
 <p>Adam eventually converges, but note that both the y-axis and x-axis scales are much larger than for EM. It takes 100s of epochs to achieve comparable log likelihoods, and each epoch is roughly the equivalent cost to one iteration of EM.</p>
@@ -811,7 +811,7 @@ y_t \mid z_t, \theta &amp;\sim \mathrm{N}(H z_t, R)
 </div>
 </div>
 <div class="cell_output docutils container">
-<img alt="../../_images/d89eb1669a87f8e6da3049612c6240eab5a5a05b9aedb4076b4ea9bc674ed233.png" src="../../_images/d89eb1669a87f8e6da3049612c6240eab5a5a05b9aedb4076b4ea9bc674ed233.png" />
+<img alt="../../_images/7599726131c371e1d4e49594e849f394f7f7c02622a5b8bb74c67524cc671867.png" src="../../_images/7599726131c371e1d4e49594e849f394f7f7c02622a5b8bb74c67524cc671867.png" />
 </div>
 </div>
 </section>
