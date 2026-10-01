@@ -8,6 +8,7 @@ import warnings
 
 from functools import wraps
 from jax import lax
+from jax.scipy.linalg import solve_triangular
 from jax.tree_util import tree_map
 from jaxtyping import Array, Float
 from dynamax.utils.utils import psd_solve, symmetrize
@@ -15,9 +16,7 @@ from dynamax.parameters import ParameterProperties
 from dynamax.types import PRNGKeyT, Scalar
 from typing import NamedTuple, Optional, Union, Tuple
 
-from tensorflow_probability.substrates.jax.distributions import (
-    MultivariateNormalDiagPlusLowRankCovariance as MVNLowRank,
-    MultivariateNormalFullCovariance as MVN)
+from tensorflow_probability.substrates.jax.distributions import MultivariateNormalFullCovariance as MVN
 
 class ParamsLGSSMInitial(NamedTuple):
     r"""Parameters of the initial distribution
@@ -255,6 +254,57 @@ def _predict(prior_mean: Float[Array, "state_dim"],
     return mu_pred, Sigma_pred
 
 
+def _condition_on_diagonal(prior_mean: Float[Array, "state_dim"],
+                           prior_cov: Float[Array, "state_dim state_dim"],
+                           emission_matrix: Float[Array, "emission_dim state_dim"],
+                           input_weights: Float[Array, "emission_dim input_dim"],
+                           emission_bias: Float[Array, "emission_dim"],
+                           emission_cov: Float[Array, "emission_dim"],
+                           inpt: Float[Array, "input_dim"],
+                           emission: Float[Array, "emission_dim"]
+                           ) -> Tuple[Float[Array, "state_dim"],
+                                      Float[Array, "state_dim state_dim"], Scalar]:
+    """Condition and evaluate a Gaussian observation with diagonal noise.
+
+    Work in whitened state coordinates to share the factorization between the
+    posterior moments and marginal likelihood. With prior covariance P, emission
+    matrix H, and observation variances R, the whitened emission matrix is
+    W = (H @ chol(P)) / sqrt(R)[:, None].
+
+    For observation dimension D and latent state dimension K, this uses
+    O(D K^2 + K^3) work and O(D K + K^2) storage, excluding projection of the
+    input. No observation covariance or inverse is constructed.
+
+    The prior covariance must be positive definite and ``emission_cov`` must
+    contain positive variances. The whitened precision is I + W.T @ W;
+    no diagonal jitter is added.
+
+    Returns:
+        posterior mean, posterior covariance, and observation log likelihood.
+    """
+    prior_factor = jnp.linalg.cholesky(prior_cov)
+    emission_scale = jnp.sqrt(emission_cov)
+    residual = emission - input_weights @ inpt - emission_bias - emission_matrix @ prior_mean
+    whitened_residual = residual / emission_scale
+    whitened_matrix = (emission_matrix @ prior_factor) / emission_scale[:, None]
+    precision = jnp.eye(prior_cov.shape[-1], dtype=whitened_matrix.dtype) + whitened_matrix.T @ whitened_matrix
+    precision_factor = jnp.linalg.cholesky(precision)
+
+    rhs = whitened_matrix.T @ whitened_residual
+    whitened_mean = solve_triangular(precision_factor, rhs, lower=True)
+    whitened_mean = solve_triangular(precision_factor.T, whitened_mean, lower=False)
+    posterior_mean = prior_mean + prior_factor @ whitened_mean
+    posterior_factor_t = solve_triangular(precision_factor, prior_factor.T, lower=True)
+    posterior_cov = symmetrize(posterior_factor_t.T @ posterior_factor_t)
+
+    # This sum-of-squares form avoids cancellation in the Woodbury quadratic.
+    whitened_error = whitened_residual - whitened_matrix @ whitened_mean
+    quadratic = jnp.sum(jnp.square(whitened_error)) + jnp.sum(jnp.square(whitened_mean))
+    logdet = jnp.sum(jnp.log(emission_cov)) + 2 * jnp.sum(jnp.log(jnp.diag(precision_factor)))
+    log_likelihood = -0.5 * (emission.shape[-1] * jnp.log(2 * jnp.pi) + logdet + quadratic)
+    return posterior_mean, posterior_cov, log_likelihood
+
+
 def _condition_on(prior_mean: Float[Array, "state_dim"],
                   prior_cov: Float[Array, "state_dim state_dim"],
                   emission_matrix: Float[Array, "emission_dim state_dim"],
@@ -276,27 +326,17 @@ def _condition_on(prior_mean: Float[Array, "state_dim"],
          PP = P - K S K' = Sigma_cond
 
      Returns:
-         mu_pred (D_hid,): predicted mean.
-         Sigma_pred (D_hid,D_hid): predicted covariance.
+         mu_cond (state_dim,): posterior mean.
+         Sigma_cond (state_dim, state_dim): posterior covariance.
     """
     if emission_cov.ndim == 2:
         S = emission_cov + emission_matrix @ prior_cov @ emission_matrix.T
         K = psd_solve(S, emission_matrix @ prior_cov).T
     else:
-        # Optimization using Woodbury identity with A=R, U=H@chol(P), V=U.T, C=I
-        # (see https://en.wikipedia.org/wiki/Woodbury_matrix_identity)
-        I = jnp.eye(prior_cov.shape[0])
-        U = emission_matrix @ jnp.linalg.cholesky(prior_cov)
-        X = U / emission_cov[:, None]
-        S_inv = jnp.diag(1.0 / emission_cov) - X @ psd_solve(I + U.T @ X, X.T)
-        """
-        # Could alternatively use U=H and C=P
-        R_inv = jnp.diag(1.0 / R)
-        P_inv = psd_solve(P, jnp.eye(P.shape[0]))
-        S_inv = R_inv - R_inv @ H @ psd_solve(P_inv + H.T @ R_inv @ H, H.T @ R_inv)
-        """
-        K = prior_cov @ emission_matrix.T @ S_inv
-        S = jnp.diag(emission_cov) + emission_matrix @ prior_cov @ emission_matrix.T
+        mu_cond, Sigma_cond, _ = _condition_on_diagonal(
+            prior_mean, prior_cov, emission_matrix, input_weights,
+            emission_bias, emission_cov, inpt, emission)
+        return mu_cond, Sigma_cond
 
     residual = emission - input_weights @ inpt - emission_bias - emission_matrix @ prior_mean
     mu_cond = prior_mean + K @ residual
@@ -475,17 +515,6 @@ def lgssm_filter(params: ParamsLGSSM,
     num_timesteps = len(emissions)
     inputs = jnp.zeros((num_timesteps, 0)) if inputs is None else inputs
 
-    def _log_likelihood(pred_mean, pred_cov, H, D, d, R, u, y):
-        """Compute the log likelihood of an observation under a linear Gaussian model."""
-        m = H @ pred_mean + D @ u + d
-        if R.ndim==2:
-            S = R + H @ pred_cov @ H.T
-            return MVN(m, S).log_prob(y)
-        else:
-            L = H @ jnp.linalg.cholesky(pred_cov)
-            return MVNLowRank(m, R, L).log_prob(y)
-
-
     def _step(carry, t):
         """Run one step of the Kalman filter."""
         ll, pred_mean, pred_cov = carry
@@ -495,11 +524,16 @@ def lgssm_filter(params: ParamsLGSSM,
         u = inputs[t]
         y = emissions[t]
 
-        # Update the log likelihood
-        ll += _log_likelihood(pred_mean, pred_cov, H, D, d, R, u, y)
-
-        # Condition on this emission
-        filtered_mean, filtered_cov = _condition_on(pred_mean, pred_cov, H, D, d, R, u, y)
+        if R.ndim == 2:
+            # Preserve the dense observation update and likelihood calculation.
+            m = H @ pred_mean + D @ u + d
+            S = R + H @ pred_cov @ H.T
+            ll += MVN(m, S).log_prob(y)
+            filtered_mean, filtered_cov = _condition_on(pred_mean, pred_cov, H, D, d, R, u, y)
+        else:
+            filtered_mean, filtered_cov, log_likelihood = _condition_on_diagonal(
+                pred_mean, pred_cov, H, D, d, R, u, y)
+            ll += log_likelihood
 
         # Predict the next state
         pred_mean, pred_cov = _predict(filtered_mean, filtered_cov, F, B, b, Q, u)
