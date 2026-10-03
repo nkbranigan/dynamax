@@ -377,3 +377,14 @@ def test_hmm_posterior_sample_nonstationary():
         jr.PRNGKey(0), jnp.array([0.5, 0.5]), transitions, jnp.zeros((3, 2)))
     assert states[0] == states[1]
     assert states[1] != states[2]
+
+
+def test_hmm_fixed_lag_smoother_nonstationary():
+    """Check HMM fixed-lag smoothing transition indexing:
+    both messages use transition index t - 1 at time t.
+    """
+    transitions = jnp.stack([jnp.eye(2), jnp.fliplr(jnp.eye(2))])
+    log_likelihoods = jnp.log(jnp.array([[1., 1.], [0.9, 0.1], [1., 1.]]))
+    posterior = core.hmm_fixed_lag_smoother(
+        jnp.array([0.5, 0.5]), transitions, log_likelihoods, window_size=2)
+    assert jnp.allclose(posterior.smoothed_probs[1], jnp.array([[0.9, 0.1], [0.9, 0.1]]))
