@@ -366,3 +366,14 @@ def test_parallel_posterior_sample(
     # Compare the joint distributions
     assert jnp.allclose(blj_sample, blj, rtol=0, atol=eps)
 
+
+
+def test_hmm_posterior_sample_nonstationary():
+    """Check HMM posterior sampling transition indexing:
+    transitions[t] connects states[t] and states[t + 1].
+    """
+    transitions = jnp.stack([jnp.eye(2), jnp.fliplr(jnp.eye(2))])
+    _, states = core.hmm_posterior_sample(
+        jr.PRNGKey(0), jnp.array([0.5, 0.5]), transitions, jnp.zeros((3, 2)))
+    assert states[0] == states[1]
+    assert states[1] != states[2]
