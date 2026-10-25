@@ -3,10 +3,9 @@ Inference algorithms for linear Gaussian state space models in information form.
 """
 import jax.numpy as jnp
 
-from dynamax.linear_gaussian_ssm.inference import ParamsLGSSM
+from dynamax.linear_gaussian_ssm.block_tridiag import block_tridiag_mvn_filter
 from dynamax.utils.utils import psd_solve
 from jax import lax, vmap, value_and_grad
-from jax.scipy.linalg import solve_triangular
 from jaxtyping import Array, Float
 from typing import NamedTuple, Optional, Tuple
 
@@ -307,87 +306,27 @@ def block_tridiag_mvn_log_normalizer(precision_diag_blocks: Float[Array, "num_ti
                                      linear_potential: Float[Array, "num_timesteps state_dim"]) \
                                      -> Tuple[Float, Tuple[Float[Array, "num_timesteps state_dim state_dim"], 
                                                            Float[Array, "num_timesteps state_dim"]]]:
-    r"""
-    Compute the log normalizing constant for a multivariate normal distribution
-    with natural parameters :math:`J` and :math:`h` with density,
-    ..math:
-        \log p(x) = -1/2 x^\top J x + h^\top x - \log Z
+    """
+    Compute the log normalizing constant of a Gaussian with a block tridiagonal precision matrix.
 
-    where the log normalizer is
-    ..math:
-        \log Z = N/2 \log 2 \pi - \log  |J| + 1/2 h^T J^{-1} h
-
-    and :math:`N` is the dimensionality.
-
-    Typically, computing the log normalizer is cubic in N, but if :math:`J` is
-    block tridiagonal, it can be computed in O(N) time. Specifically, suppose
-    J is TDxTD with blocks of size D on the diagonal and first off diagonal.
-    Since J is symmetric, we can represent the matrix by only its diagonal and
-    first lower diagonal blocks. This is exactly the type of precision matrix
-    we encounter with linear Gaussian dynamical systems. This code computes its
-    log normalizer using the so-called "information form Kalman filter."
+    The Gaussian is given in information form, by its precision matrix and linear potential, over
+    T blocks of D dimensions each. This is the form of the posterior over the states of a linear
+    Gaussian dynamical system. The function runs the Kalman filter in information form, so its cost
+    grows linearly in T rather than cubically.
 
     Args:
-
-    precision_diag_blocks:          Shape (T, D, D) array of the diagonal blocks
-                                    of a shape (TD, TD) precision matrix.
-    precision_lower_diag_blocks:    Shape (T-1, D, D) array of the lower diagonal
-                                    blocks of a shape (TD, TD) precision matrix.
-    linear_potential:               Shape (T, D) array of linear potentials of a
-                                    TD dimensional multivariate normal distribution
-                                    in information form.
+        precision_diag_blocks: diagonal blocks of the (TD, TD) precision matrix, shape (T, D, D)
+        precision_lower_diag_blocks: blocks just below the diagonal of the precision matrix, shape (T-1, D, D)
+        linear_potential: linear potential, shape (T, D)
 
     Returns:
-
-    log_normalizer:                 The scalar log normalizing constant.
-    (filtered_Js, filtered_hs):     The precision and linear potentials of the
-                                    Gaussian filtering distributions in information
-                                    form, with shape (T, D, D) and (T, D) respectively.
+        log_normalizer: the log normalizing constant
+        (filtered_Js, filtered_hs): precisions and linear potentials of the filtering distributions,
+            shapes (T, D, D) and (T, D)
     """
-    # Shorthand names
-    J_diag = precision_diag_blocks
-    J_lower_diag = precision_lower_diag_blocks
-    h = linear_potential
-
-    # extract dimensions
-    num_timesteps, dim = J_diag.shape[:2]
-
-    # Pad the L's with one extra set of zeros for the last predict step
-    J_lower_diag_pad = jnp.concatenate((J_lower_diag, jnp.zeros((1, dim, dim))), axis=0)
-
-    def marginalize(carry, t):
-        """Run a single step of the Kalman filter."""
-        Jp, hp, lp = carry
-
-        # Condition
-        Jc = J_diag[t] + Jp
-        hc = h[t] + hp
-
-        # Predict
-        sqrt_Jc = jnp.linalg.cholesky(Jc)
-        trm1 = solve_triangular(sqrt_Jc, hc, lower=True)
-        trm2 = solve_triangular(sqrt_Jc, J_lower_diag_pad[t].T, lower=True)
-        log_Z = 0.5 * dim * jnp.log(2 * jnp.pi)
-        log_Z += -jnp.sum(jnp.log(jnp.diag(sqrt_Jc)))  # sum these terms only to get approx log|J|
-        log_Z += 0.5 * jnp.dot(trm1.T, trm1)
-        Jp = -jnp.dot(trm2.T, trm2)
-        hp = -jnp.dot(trm2.T, trm1)
-
-        # Alternative predict step:
-        # log_Z = 0.5 * dim * jnp.log(2 * jnp.pi)
-        # log_Z += -0.5 * jnp.linalg.slogdet(Jc)[1]
-        # log_Z += 0.5 * jnp.dot(hc, jnp.linalg.solve(Jc, hc))
-        # Jp = -jnp.dot(J_lower_diag_pad[t], jnp.linalg.solve(Jc, J_lower_diag_pad[t].T))
-        # hp = -jnp.dot(J_lower_diag_pad[t], jnp.linalg.solve(Jc, hc))
-
-        new_carry = Jp, hp, lp + log_Z
-        return new_carry, (Jc, hc)
-
-    # Initialize
-    Jp0 = jnp.zeros((dim, dim))
-    hp0 = jnp.zeros((dim,))
-    (_, _, log_Z), (filtered_Js, filtered_hs) = lax.scan(marginalize, (Jp0, hp0, 0), jnp.arange(num_timesteps))
-    return log_Z, (filtered_Js, filtered_hs)
+    log_normalizer, _, filtered_Js, filtered_hs = block_tridiag_mvn_filter(
+        precision_diag_blocks, precision_lower_diag_blocks, linear_potential)
+    return log_normalizer, (filtered_Js, filtered_hs)
 
 
 def block_tridiag_mvn_expectations(precision_diag_blocks: Float[Array, "num_timesteps state_dim state_dim"], 
@@ -398,29 +337,21 @@ def block_tridiag_mvn_expectations(precision_diag_blocks: Float[Array, "num_time
                                             Float[Array, "num_timesteps state_dim state_dim"],
                                             Float[Array, "num_timesteps-1 state_dim state_dim"]]:
     """
-    Compute the posterior expectations of a multivariate normal distribution
-    with block tridiagonal precision matrix in O(T) time using the
-    information form Kalman filter.
-    
-    Note: this implementation uses automatic differentiation of the log normalizer
-    to compute the expected sufficient statistics. 
+    Compute the mean and second moments of a Gaussian with a block tridiagonal precision matrix.
+
+    The cost grows linearly in the number of blocks T. The moments are found by automatic
+    differentiation of the log normalizer.
 
     Args:
-
-    precision_diag_blocks:          Shape (T, D, D) array of the diagonal blocks
-                                    of a shape (TD, TD) precision matrix.
-    precision_lower_diag_blocks:    Shape (T-1, D, D) array of the lower diagonal
-                                    blocks of a shape (TD, TD) precision matrix.
-    linear_potential:               Shape (T, D) array of linear potentials of a
-                                    TD dimensional multivariate normal distribution
+        precision_diag_blocks: diagonal blocks of the (TD, TD) precision matrix, shape (T, D, D)
+        precision_lower_diag_blocks: blocks just below the diagonal of the precision matrix, shape (T-1, D, D)
+        linear_potential: linear potential, shape (T, D)
 
     Returns:
-    
-    log_normalizer:                 The scalar log normalizing constant.
-    Ex:                             The expected value of x, with shape (T, D).
-    ExxT:                           The expected value of x x^T, with shape (T, D, D).
-    ExxnT:                          The expected value of x_{t-1} x_t^T, with shape (T-1, D, D).
-
+        log_normalizer: the log normalizing constant
+        Ex: expected value of each block x_t, shape (T, D)
+        ExxT: expected value of x_t x_t^T, shape (T, D, D)
+        ExxnT: expected value of x_{t+1} x_t^T, shape (T-1, D, D)
     """
     # Run message passing code to get the log normalizer, the filtering potentials,
     # and the expected values of x. Technically, the natural parameters are -1/2 J
@@ -433,52 +364,3 @@ def block_tridiag_mvn_expectations(precision_diag_blocks: Float[Array, "num_time
     ExxnT = -grads[1]
     Ex = grads[2]
     return log_normalizer, Ex, ExxT, ExxnT
-
-
-def lds_to_block_tridiag(lds: ParamsLGSSM, 
-                         data: Float[Array, "num_timesteps emission_dim"], 
-                         inputs: Float[Array, "num_timesteps input_dim"]) \
-                         -> Tuple[Float[Array, "num_timesteps state_dim state_dim"], 
-                                  Float[Array, "num_timesteps-1 state_dim state_dim"], 
-                                  Float[Array, "num_timesteps state_dim"]]: 
-    """
-    Convert a linear dynamical system to block tridiagonal form for the
-    information form Kalman filter.
-
-    Args:
-        lds: ParamsLGSSM instance
-        data: (T, D) array of observations
-        inputs: (T, D_in) array of inputs
-
-    Returns:
-        J_diag: (T, D, D) array of diagonal blocks of precision matrix
-        J_lower_diag: (T-1, D, D) array of lower diagonal blocks of precision matrix
-        h: (T, D) array of linear potentials
-    """
-    # Shorthand names for parameters
-    m0 = lds.initial_mean
-    Q0 = lds.initial_covariance
-    A = lds.dynamics_matrix
-    B = lds.dynamics_input_weights
-    Q = lds.dynamics_noise_covariance
-    C = lds.emissions_matrix
-    D = lds.emissions_input_weights
-    R = lds.emissions_noise_covariance
-    T = len(data)
-
-    # diagonal blocks of precision matrix
-    J_diag = jnp.array([jnp.dot(C(t).T, psd_solve(R(t), C(t))) for t in range(T)])
-    J_diag = J_diag.at[0].add(jnp.linalg.inv(Q0))
-    J_diag = J_diag.at[:-1].add(jnp.array([jnp.dot(A(t).T, psd_solve(Q(t), A(t))) for t in range(1, T)]))
-    J_diag = J_diag.at[1:].add(jnp.array([jnp.linalg.inv(Q(t)) for t in range(1, T)]))
-
-    # lower diagonal blocks of precision matrix
-    J_lower_diag = jnp.array([-psd_solve(Q(t), A(t)) for t in range(1, T)])
-
-    # linear potential
-    h = jnp.array([jnp.dot(data[t] - D(t) @ inputs[t], psd_solve(R(t), C(t))) for t in range(T)])
-    h = h.at[0].add(psd_solve(Q0, m0))
-    h = h.at[:-1].add(jnp.array([-jnp.dot(A(t).T, psd_solve(Q(t), B(t) @ inputs[t])) for t in range(1, T)]))
-    h = h.at[1:].add(jnp.array([psd_solve(Q(t), B(t) @ inputs[t]) for t in range(1, T)]))
-
-    return J_diag, J_lower_diag, h
