@@ -426,3 +426,24 @@ def test_compute_transition_probs_nonstationary_zero_columns(key=0, num_timestep
         expected = expected.at[paths[:, t], paths[:, t + 1]].add(path_probs)
         assert jnp.allclose(posterior.trans_probs[t], expected, atol=1e-5)
         assert jnp.allclose(posterior.smoothed_probs[t], expected.sum(1), atol=1e-5)
+
+
+def test_smoother_keeps_mass_on_tiny_predicted_probs():
+    """A transition predicted with probability 1e-10 that strong evidence then confirms keeps
+    its posterior mass. The former ``isclose`` guard (atol 1e-8) rounded such predictions to
+    zero and dropped the mass. Weights stay above the 1e-15 floor of ``_normalize``."""
+    eps = 1e-10
+    initial_probs = jnp.array([1.0, 0.0])
+    transition_matrix = jnp.array([[1.0 - eps, eps], [0.0, 1.0]])
+    log_likelihoods = jnp.array([[0.0, 0.0], [-30.0, 0.0]])
+
+    paths, log_joint = big_log_joint_nonstationary(initial_probs, transition_matrix[None], log_likelihoods)
+    path_probs = jnp.exp(log_joint - logsumexp(log_joint))
+    expected_trans = jnp.zeros((2, 2)).at[paths[:, 0], paths[:, 1]].add(path_probs)
+    assert expected_trans[0, 1] > 0.99  # the rare transition dominates the posterior
+
+    for transitions in (transition_matrix, transition_matrix[None]):
+        posterior = core.hmm_smoother(initial_probs, transitions, log_likelihoods)
+        trans_probs = posterior.trans_probs if transitions.ndim == 2 else posterior.trans_probs[0]
+        assert jnp.allclose(posterior.smoothed_probs[1], expected_trans.sum(0), atol=1e-6)
+        assert jnp.allclose(trans_probs, expected_trans, atol=1e-6)

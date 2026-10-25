@@ -110,6 +110,18 @@ def _predict(probs : Float[Array, " num states"],
     return A.T @ probs
 
 
+def _safe_ratio(numerator: Array, denominator: Array) -> Array:
+    """Elementwise ``numerator / denominator`` with exact zeros in the denominator mapped to 0.
+
+    This is the backward-message ratio of the HMM smoother. A predicted probability of
+    exactly zero implies a smoothed probability of zero, so 0/0 is defined as 0. Tiny but
+    positive predicted probabilities keep their (possibly very large) ratio: rounding them
+    to zero would discard posterior mass that strong evidence can place on rare transitions.
+    """
+    tiny = jnp.finfo(jnp.result_type(denominator)).tiny
+    return jnp.where(denominator > 0, numerator / jnp.maximum(denominator, tiny), 0.0)
+
+
 @partial(jit, static_argnames=["transition_fn"])
 def hmm_filter(
     initial_distribution: Float[Array, " num_states"],
@@ -305,9 +317,7 @@ def hmm_smoother(
         A = get_trans_mat(transition_matrix, transition_fn, t)
 
         # Fold in the next state (Eq. 8.2 of Saarka, 2013)
-        # If hard 0. in predicted_probs_next, set relative_probs_next as 0. to avoid NaN values
-        relative_probs_next = jnp.where(jnp.isclose(predicted_probs_next, 0.0), 0.0,
-                                        smoothed_probs_next / predicted_probs_next)
+        relative_probs_next = _safe_ratio(smoothed_probs_next, predicted_probs_next)
         smoothed_probs = filtered_probs * (A @ relative_probs_next)
         smoothed_probs /= smoothed_probs.sum()
 
@@ -580,9 +590,7 @@ def _compute_sum_transition_probs(
         A = _get_params(transition_matrix, 2, t)
 
         # Compute smoothed transition probabilities (Eq. 8.4 of Saarka, 2013)
-        # If hard 0. in predicted_probs_next, set relative_probs_next as 0. to avoid NaN values
-        relative_probs_next = jnp.where(jnp.isclose(predicted_probs_next, 0.0), 0.0,
-                                        smoothed_probs_next / predicted_probs_next)
+        relative_probs_next = _safe_ratio(smoothed_probs_next, predicted_probs_next)
         smoothed_trans_probs = filtered_probs[:, None] * A * relative_probs_next[None, :]
         smoothed_trans_probs /= smoothed_trans_probs.sum()
         return carry + smoothed_trans_probs, None
@@ -618,9 +626,7 @@ def _compute_all_transition_probs(
     filtered_probs = hmm_posterior.filtered_probs[:-1]
     smoothed_probs_next = hmm_posterior.smoothed_probs[1:]
     predicted_probs_next = hmm_posterior.predicted_probs[1:]
-    # If hard 0. in predicted_probs_next, set relative_probs_next as 0. to avoid NaN values
-    relative_probs_next = jnp.where(jnp.isclose(predicted_probs_next, 0.0), 0.0,
-                                    smoothed_probs_next / predicted_probs_next)
+    relative_probs_next = _safe_ratio(smoothed_probs_next, predicted_probs_next)
 
     def _compute_probs(t):
         """Compute the transition probabilities at time t."""
