@@ -85,7 +85,9 @@ def log_space_hmm_smoother(initial_probs: Array, log_transition_matrices: Array,
     Unlike ``hmm_smoother``, it works with log probabilities throughout. With ordinary probabilities, float32
     rounds very small numbers to exactly zero. The pass then fails at any step where the data strongly favor
     only one state, and that state's probability of being entered has been rounded to zero: then
-    sum_k p(y_t, z_t = k | y_{1:t-1}) = 0 (division by zero).
+    sum_k p(y_t, z_t = k | y_{1:t-1}) = 0 (division by zero). For example, for the rSLDS fit to the NASCAR
+    data (``rslds.ipynb``), in float32 and without working in log space, at some time
+    steps the likelihood of all but one state is zero and the probability of entering that state is zero.
 
     Args:
         initial_probs: initial distribution, shape (K,)

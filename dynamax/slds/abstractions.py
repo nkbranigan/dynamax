@@ -323,7 +323,7 @@ class SLDS(SSM):
     posterior and a continuous posterior, and the two are updated in turn.
 
     The model is built from four components, and its parameters are stored in a :class:`ParamsSLDS` object.
-    See :class:`GaussianSLDS` for a concrete model.
+    See :class:`GaussianSLDS` and :class:`RecurrentGaussianSLDS` for concrete models.
 
     :param num_states: number of discrete states
     :param state_dim: dimensionality of the continuous state
