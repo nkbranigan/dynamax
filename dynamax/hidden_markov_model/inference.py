@@ -65,18 +65,20 @@ class HMMPosterior(NamedTuple):
                                 Float[Array, "num_timesteps_minus_1 num_states num_states"]]] = None
 
 
-def _normalize(u: Array, axis=0, eps=1e-15):
+def _normalize(u: Array, axis=0):
     """Normalizes the values within the axis in a way that they sum up to 1.
+
+    Tiny probabilities are kept as they are: flooring them (an earlier version raised every
+    nonzero value to at least 1e-15) biases the filter whenever a state with a tiny predicted
+    probability later receives strong evidence, since the floored mass gets amplified.
 
     Args:
         u: Input array to normalize.
         axis: Axis over which to normalize.
-        eps: Minimum value threshold for numerical stability.
 
     Returns:
-        Tuple of the normalized values, and the normalizing denominator.
+        Tuple of the normalized values, and the normalizing denominator (1 when the values sum to 0).
     """
-    u = jnp.where(u == 0, 0, jnp.where(u < eps, eps, u))
     c = u.sum(axis=axis)
     c = jnp.where(c == 0, 1, c)
     return u / c, c

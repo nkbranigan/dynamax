@@ -431,7 +431,7 @@ def test_compute_transition_probs_nonstationary_zero_columns(key=0, num_timestep
 def test_smoother_keeps_mass_on_tiny_predicted_probs():
     """A transition predicted with probability 1e-10 that strong evidence then confirms keeps
     its posterior mass. The former ``isclose`` guard (atol 1e-8) rounded such predictions to
-    zero and dropped the mass. Weights stay above the 1e-15 floor of ``_normalize``."""
+    zero and dropped the mass."""
     eps = 1e-10
     initial_probs = jnp.array([1.0, 0.0])
     transition_matrix = jnp.array([[1.0 - eps, eps], [0.0, 1.0]])
@@ -447,3 +447,26 @@ def test_smoother_keeps_mass_on_tiny_predicted_probs():
         trans_probs = posterior.trans_probs if transitions.ndim == 2 else posterior.trans_probs[0]
         assert jnp.allclose(posterior.smoothed_probs[1], expected_trans.sum(0), atol=1e-6)
         assert jnp.allclose(trans_probs, expected_trans, atol=1e-6)
+
+
+def test_filter_does_not_floor_tiny_probabilities():
+    """A state predicted with probability 1e-20 that strong evidence (a log-likelihood gap of 45)
+    then confirms: the exact posterior gives it 1e-20 * e^45 / (1 + 1e-20 * e^45) = 0.26 of the mass.
+    The former 1e-15 floor in ``_normalize`` raised the prediction to 1e-15 and made the state
+    certain (and the marginal log likelihood wrong by about 10 nats); ``hmm_filter`` must match
+    the exact log-space forward pass."""
+    eps = 1e-20
+    initial_probs = jnp.array([1.0, 0.0])
+    transition_matrix = jnp.array([[1.0 - eps, eps], [0.0, 1.0]])
+    log_likelihoods = jnp.array([[0.0, 0.0], [0.0, 45.0]])
+
+    log_alpha = jnp.log(initial_probs) + log_likelihoods[0]
+    log_alpha = logsumexp(log_alpha[:, None] + jnp.log(transition_matrix), axis=0) + log_likelihoods[1]
+    exact_filtered = jnp.exp(log_alpha - logsumexp(log_alpha))
+    assert 0.2 < exact_filtered[1] < 0.3
+
+    posterior = core.hmm_filter(initial_probs, transition_matrix, log_likelihoods)
+    assert jnp.allclose(posterior.filtered_probs[1], exact_filtered, rtol=1e-4)
+    assert jnp.allclose(posterior.marginal_loglik, logsumexp(log_alpha), rtol=1e-5)
+    smoothed = core.hmm_smoother(initial_probs, transition_matrix, log_likelihoods)
+    assert jnp.allclose(smoothed.smoothed_probs[1], exact_filtered, rtol=1e-4)
