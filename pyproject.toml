@@ -110,6 +110,11 @@ versionfile_build = "dynamax/_version.py"
 tag_prefix = ""
 parentdir_prefix = ""
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: long-running benchmark tests (deselect with '-m \"not slow\"')",
+]
+
 [tool.black]
 line-length = 120
 

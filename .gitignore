@@ -15,3 +15,5 @@ dist/
 *.DS_Store
 .vscode/
 .venv
+# ssm oracle fixtures are regenerated locally (dynamax/slds/fixtures/README.md)
+dynamax/slds/fixtures/*.npz
