@@ -38,7 +38,8 @@ class StationarySLDSTransitions(SLDSTransitions):
 
         Args:
             key: random number generator; required unless ``transition_matrix`` is given
-            method: ``"prior"`` draws each row from the Dirichlet prior
+            method: ``"prior"`` draws each row from the Dirichlet prior; ``"sticky"`` draws a random
+                matrix with most of its weight on the diagonal
             transition_matrix: optional transition matrix, shape (K, K), to use instead of a random one
 
         Returns:
@@ -49,6 +50,10 @@ class StationarySLDSTransitions(SLDSTransitions):
                 raise ValueError("key must be provided if transition_matrix is not provided.")
             if method == "prior":
                 transition_matrix = jr.dirichlet(key, self.concentration)
+            elif method == "sticky":
+                K = self.num_states
+                transition_matrix = 0.95 * jnp.eye(K) + 0.05 * jr.uniform(key, (K, K))
+                transition_matrix = transition_matrix / transition_matrix.sum(axis=1, keepdims=True)
             else:
                 raise ValueError(f"Unknown initialization method {method!r}")
         params = ParamsStationarySLDSTransitions(transition_matrix=transition_matrix)
