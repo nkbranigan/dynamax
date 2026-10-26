@@ -228,6 +228,7 @@ If you're new to these models, we recommend you start at the top and work your w
    :caption: Switching Linear Dynamical Systems
 
    notebooks/slds/slds_laplace_em.ipynb
+   notebooks/slds/rslds_nascar.ipynb
 
 
 API documentation
