@@ -618,12 +618,15 @@ def _compute_all_transition_probs(
     filtered_probs = hmm_posterior.filtered_probs[:-1]
     smoothed_probs_next = hmm_posterior.smoothed_probs[1:]
     predicted_probs_next = hmm_posterior.predicted_probs[1:]
-    relative_probs_next = smoothed_probs_next / predicted_probs_next
+    # If hard 0. in predicted_probs_next, set relative_probs_next as 0. to avoid NaN values
+    relative_probs_next = jnp.where(jnp.isclose(predicted_probs_next, 0.0), 0.0,
+                                    smoothed_probs_next / predicted_probs_next)
 
     def _compute_probs(t):
         """Compute the transition probabilities at time t."""
         A = get_trans_mat(transition_matrix, transition_fn, t)
-        return jnp.einsum('i,ij,j->ij', filtered_probs[t], A, relative_probs_next[t])
+        transition_probs = jnp.einsum('i,ij,j->ij', filtered_probs[t], A, relative_probs_next[t])
+        return transition_probs / transition_probs.sum()
 
     transition_probs = vmap(_compute_probs)(jnp.arange(len(filtered_probs)))
     return transition_probs
