@@ -179,6 +179,34 @@ Types
 .. autoclass:: dynamax.linear_gaussian_ssm.PosteriorGSSMFiltered
 .. autoclass:: dynamax.linear_gaussian_ssm.PosteriorGSSMSmoothed
 
+Switching Linear Dynamical System
+==================================
+
+Base class
+----------
+
+.. autoclass:: dynamax.slds.SLDS
+  :show-inheritance:
+  :members: initialize, fit_em, approximate_posterior, most_likely_states, expected_emissions, sample
+
+High-level models
+-----------------
+
+.. autoclass:: dynamax.slds.GaussianSLDS
+  :show-inheritance:
+
+Types
+-----
+
+.. autoclass:: dynamax.slds.ParamsSLDS
+.. autoclass:: dynamax.slds.ParamsSLDSDynamics
+.. autoclass:: dynamax.slds.ParamsSLDSEmissions
+.. autoclass:: dynamax.slds.ParamsStationarySLDSTransitions
+.. autoclass:: dynamax.slds.PosteriorSLDS
+.. autoclass:: dynamax.slds.DiscretePosteriorSLDS
+.. autoclass:: dynamax.slds.ContinuousPosteriorSLDS
+.. autoclass:: dynamax.linear_gaussian_ssm.block_tridiag.BlockTridiagPosterior
+
 Nonlinear Gaussian GSSM
 ========================
 
