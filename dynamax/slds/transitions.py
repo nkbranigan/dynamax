@@ -1,0 +1,109 @@
+"""
+Transitions between the discrete states of a switching linear dynamical system (SLDS).
+
+:class:`StationarySLDSTransitions` uses the same transition matrix at every time step, as in the standard SLDS.
+"""
+from typing import Any, Optional, Tuple, Union
+
+import jax.numpy as jnp
+import jax.random as jr
+import tensorflow_probability.substrates.jax.bijectors as tfb
+import tensorflow_probability.substrates.jax.distributions as tfd
+from jax.scipy.special import xlogy
+from jaxtyping import Array, Float
+
+from dynamax.hidden_markov_model.models.transitions import ParamsStandardHMMTransitions
+from dynamax.parameters import ParameterProperties
+from dynamax.slds.abstractions import DiscretePosteriorSLDS, SLDSTransitions
+from dynamax.types import PRNGKeyT, Scalar
+
+ParamsStationarySLDSTransitions = ParamsStandardHMMTransitions
+
+
+class StationarySLDSTransitions(SLDSTransitions):
+    """A stationary transition matrix (the same at every time step), with a Dirichlet prior on each row.
+
+    :param num_states: number of discrete states
+    :param concentration: Dirichlet concentration of each row; the default of 1.0 gives the maximum likelihood update
+    :param stickiness: extra concentration on the diagonal, which favors staying in the same state
+    """
+    def __init__(self, num_states: int, concentration: Union[Scalar, Array] = 1.0, stickiness: Union[Scalar, Array] = 0.0):
+        self.num_states = num_states
+        self.concentration = concentration * jnp.ones((num_states, num_states)) + stickiness * jnp.eye(num_states)
+
+    # ---- parameters -------------------------------------------------------------------------
+    def initialize(self, key: Optional[PRNGKeyT] = None, method: str = "prior",
+                   transition_matrix: Optional[Array] = None) -> Tuple[ParamsStationarySLDSTransitions, ParamsStationarySLDSTransitions]:
+        """Initialize the transition matrix.
+
+        Args:
+            key: random number generator; required unless ``transition_matrix`` is given
+            method: ``"prior"`` draws each row from the Dirichlet prior
+            transition_matrix: optional transition matrix, shape (K, K), to use instead of a random one
+
+        Returns:
+            tuple of parameters and their properties
+        """
+        if transition_matrix is None:
+            if key is None:
+                raise ValueError("key must be provided if transition_matrix is not provided.")
+            if method == "prior":
+                transition_matrix = jr.dirichlet(key, self.concentration)
+            else:
+                raise ValueError(f"Unknown initialization method {method!r}")
+        params = ParamsStationarySLDSTransitions(transition_matrix=transition_matrix)
+        props = ParamsStationarySLDSTransitions(transition_matrix=ParameterProperties(constrainer=tfb.SoftmaxCentered()))
+        return params, props
+
+    def log_prior(self, params: ParamsStationarySLDSTransitions) -> Scalar:
+        """Compute the log prior of the transition matrix; it is zero when there is a single state."""
+        if self.num_states == 1:
+            return 0.0
+        return tfd.Dirichlet(self.concentration).log_prob(params.transition_matrix).sum()
+
+    # ---- likelihood p(z_{t+1} | z_t) --------------------------------------------------------
+    def transition_matrices(self, params: ParamsStationarySLDSTransitions, x: Array, inputs: Array) -> Array:
+        """Return the transition matrix, shape (K, K)."""
+        return params.transition_matrix
+
+    def log_transition_matrices(self, params: ParamsStationarySLDSTransitions, x: Array, inputs: Array) -> Array:
+        """Return the log of the transition matrix, shape (K, K)."""
+        return jnp.log(params.transition_matrix)
+
+    def transition_row(self, params: ParamsStationarySLDSTransitions, state: Array, x: Array, next_input: Array) -> Array:
+        """Return p(z_{t+1} | z_t), shape (K,)."""
+        return params.transition_matrix[state]
+
+    def expected_log_trans_prob(self, params: ParamsStationarySLDSTransitions, x: Array, inputs: Array, trans_probs: Array) -> Scalar:
+        """Compute sum_t E_q(z)[log p(z_{t+1} | z_t)].
+
+        ``trans_probs`` holds the posterior probability of each pair of consecutive states, summed over time.
+        """
+        return jnp.sum(xlogy(trans_probs, params.transition_matrix))
+
+    # ---- sufficient statistics and M-step ---------------------------------------------------
+    def collect_suff_stats(self, params: ParamsStationarySLDSTransitions, qz: DiscretePosteriorSLDS, x_samples: Array,
+                           inputs: Array) -> Array:
+        """Return the expected number of transitions between each pair of states, shape (K, K)."""
+        return qz.trans_probs
+
+    def initialize_m_step_state(self, params: ParamsStationarySLDSTransitions, props: ParamsStationarySLDSTransitions) -> Any:
+        """Return the M-step state, which is None because the M-step has a closed form."""
+        return None
+
+    def m_step(self,
+               params: ParamsStationarySLDSTransitions,
+               props: ParamsStationarySLDSTransitions,
+               batch_stats: Array,
+               m_step_state: Any) -> Tuple[ParamsStationarySLDSTransitions, Any]:
+        """Update the transition matrix to the mode of its posterior given the expected counts.
+
+        The counts plus the prior are clipped at zero, and a tiny floor relative to each row's total is added so
+        that no transition probability is exactly zero.
+        """
+        if props.transition_matrix.trainable:
+            counts = jnp.maximum(batch_stats.sum(axis=0) + (self.concentration - 1.0), 0.0)
+            counts = counts + 1e-32 * jnp.maximum(counts.sum(axis=-1, keepdims=True), 1.0)
+            transition_matrix = counts / counts.sum(axis=-1, keepdims=True)
+            params = params._replace(transition_matrix=transition_matrix)
+        return params, m_step_state
