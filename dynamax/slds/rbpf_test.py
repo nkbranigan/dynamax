@@ -8,7 +8,7 @@ import jax.random as jr
 import dynamax.slds.mixture_kalman_filter_demo as kflib
 import jax
 
-from dynamax.slds import DiscreteParamsSLDS, LGParamsSLDS, ParamsSLDS, rbpfilter, rbpfilter_optimal
+from dynamax.slds import DiscreteParamsRBPF, LGParamsRBPF, ParamsRBPF, rbpfilter, rbpfilter_optimal
 from jax import lax
 from tensorflow_probability.substrates.jax.distributions import MultivariateNormalFullCovariance as MVN
 from functools import partial
@@ -17,7 +17,7 @@ from jax.scipy.special import logit
 
 
 def sample_rbpf_model(params, key, num_timesteps):
-    """Sample (z, x, y) from the SLDS that `ParamsSLDS` describes: z_1 ~ pi, x_1 ~ N(mu_{z_1}, Sigma_{z_1}),
+    """Sample (z, x, y) from the SLDS that `ParamsRBPF` describes: z_1 ~ pi, x_1 ~ N(mu_{z_1}, Sigma_{z_1}),
     then transitions and emissions (no inputs)."""
     lg, num_states = params.linear_gaussian, params.discrete.initial_distribution.shape[0]
 
@@ -70,13 +70,13 @@ class TestRBPF():
         [0.1, 0.1, 0.8]
     ])
 
-    discr_params = DiscreteParamsSLDS(
+    discr_params = DiscreteParamsRBPF(
         initial_distribution=jnp.ones(num_states)/num_states,
         transition_matrix=transition_matrix,
         proposal_transition_matrix=transition_matrix
     )
 
-    lg_params = LGParamsSLDS(
+    lg_params = LGParamsRBPF(
         initial_mean=jnp.ones(state_dim),
         initial_cov=jnp.eye(state_dim),
         dynamics_weights=A,
@@ -89,7 +89,7 @@ class TestRBPF():
         emission_input_weights=None
     )
 
-    pre_params = ParamsSLDS(
+    pre_params = ParamsRBPF(
         discrete=discr_params,
         linear_gaussian=lg_params
     )
