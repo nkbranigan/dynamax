@@ -14,7 +14,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 DYNA_PY = "/Users/nicholasbranigan/opt/miniconda3/envs/dyna_dev/bin/python"
-SSM_PY = os.path.join(HERE, "ssm_venv", "bin", "python")
+SSM_PY = "/Users/nicholasbranigan/opt/miniconda3/envs/dyna_dev_ssm/bin/python"   # dynamax[dev] + ssm eb6c8aa, see dynamax/slds/fixtures/README.md
 RESULTS = os.path.join(HERE, "results_big.jsonl")
 
 BASE = dict(N=100, D=10, K=10, T=10_000, S=1)

@@ -1,6 +1,6 @@
 """Time lindermanlab/ssm's PCA+ARHMM initialization and Laplace EM on a saved dataset.
 
-Usage: ssm_venv/bin/python bench_ssm.py <slds|rslds> <num_timesteps> <num_iters>
+Usage: <python with lindermanlab/ssm installed> bench_ssm.py <slds|rslds> <num_timesteps> <num_iters>
 Prints one JSON line. numba kernels are warmed up on a tiny model first so the timed run excludes
 JIT compilation; ssm has no other fixed cost to separate.
 """

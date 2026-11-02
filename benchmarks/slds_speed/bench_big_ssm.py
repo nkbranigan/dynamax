@@ -1,6 +1,6 @@
 """Time lindermanlab/ssm on a dataset written by make_big_data.py.
 
-Usage: ssm_venv/bin/python bench_big_ssm.py <npz> <num_iters>
+Usage: <python with lindermanlab/ssm installed> bench_big_ssm.py <npz> <num_iters>
 Same protocol as bench_ssm.py: numba warmed up on a tiny model, then initialization and Laplace EM timed
 once each. Batched sequences are passed as a list.
 """
