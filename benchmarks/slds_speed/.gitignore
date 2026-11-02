@@ -2,6 +2,5 @@ ssm/
 ssm_venv/
 build.log
 __pycache__/
-results*.jsonl
 *.log
 *.png
