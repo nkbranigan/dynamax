@@ -34,19 +34,12 @@ for ax, (dataset, title) in zip(axes, DATASETS):
             continue
         T = np.array([r["num_timesteps"] for r in sel], dtype=float)
         run = np.array([r["per_iter_s"] * num_iters for r in sel])
-        ok = np.array([np.isfinite(r["final_objective"]) for r in sel])
         ax.plot(T, run, marker="o", ms=8, lw=2, color=color, label=f"{label}: {num_iters} EM iterations")
-        for t, y, good in zip(T, run, ok):
-            if not good:
-                ax.plot([t], [y], marker="x", ms=14, mew=2.5, color="#d03b3b", ls="none")
-                ax.annotate("diverged (NaN)", (t, y), xytext=(-8, 10), textcoords="offset points",
-                            ha="right", fontsize=9, color="#d03b3b")
         if lib == "dynamax":
-            comp = np.array([r.get("fit_compile_s", r.get("compile_s")) for r in sel], dtype=float)
-            comp[comp <= 0] = np.nan   # first call minus warm call: unresolvable below run-to-run noise
+            comp = np.array([r["fit_compile_s"] for r in sel], dtype=float)
             ax.plot(T, comp, marker="o", ms=8, lw=1.5, ls="--", color=color, mfc="white", mew=1.8,
                     label=f"{label}: compile")
-        init = np.array([r.get("init_warm_s", r.get("init_s")) for r in sel])
+        init = np.array([r["init_s"] for r in sel])
         ax.plot(T, init, marker="^", ms=8, lw=1.5, ls=":", color=color, label=f"{label}: initialization")
     ax.set_xscale("log")
     ax.set_yscale("log")

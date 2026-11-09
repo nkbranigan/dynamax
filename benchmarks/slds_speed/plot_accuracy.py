@@ -29,7 +29,7 @@ for col, (dataset, title) in enumerate(DATASETS):
     for row, (measure, ylabel) in enumerate(MEASURES):
         ax = axes[row, col]
         for (lib, dtype), label, color in SERIES:
-            sel = sorted([r for r in rows if r["library"] == lib and r["dtype"] == dtype and r["dataset"] == dataset and measure in r],
+            sel = sorted([r for r in rows if r["library"] == lib and r["dtype"] == dtype and r["dataset"] == dataset],
                          key=lambda r: r["num_timesteps"])
             if not sel:
                 continue
