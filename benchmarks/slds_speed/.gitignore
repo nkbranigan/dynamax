@@ -1,6 +1,3 @@
-ssm/
-ssm_venv/
-build.log
 __pycache__/
 *.log
 *.png

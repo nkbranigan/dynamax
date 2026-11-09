@@ -27,9 +27,7 @@ for ax, (dataset, title) in zip(axes, DATASETS):
     T_s = np.array([r["num_timesteps"] for r in ssm], float)
     tot_s = np.array([r["init_s"] + r["fit_s"] for r in ssm])
     T_d = np.array([r["num_timesteps"] for r in dyn], float)
-    # rows timed by first call vs warm call (older) or by ahead-of-time compile plus one run (newer)
-    tot_d = np.array([r["init_first_s"] + r["fit_first_s"] if "fit_first_s" in r else
-                      r["init_compile_s"] + r["init_s"] + r["fit_compile_s"] + r["fit_s"] for r in dyn])
+    tot_d = np.array([r["init_compile_s"] + r["init_s"] + r["fit_compile_s"] + r["fit_s"] for r in dyn])
     ax.plot(T_s, tot_s, marker="o", ms=8, lw=2, color="#eb6834", label="ssm: initialization + EM")
     ax.plot(T_d, tot_d, marker="o", ms=8, lw=2, color="#1c5cab", label="dynamax float64: initialization + compile + EM")
     for t, a, b in zip(T_d, tot_s, tot_d):
