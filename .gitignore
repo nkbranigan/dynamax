@@ -15,5 +15,5 @@ dist/
 *.DS_Store
 .vscode/
 .venv
-# regenerable benchmark datasets (benchmarks/slds_speed/make_data.py)
+# regenerable benchmark datasets (benchmarks/slds_vs_ssm/make_data.py)
 scratch_data/
