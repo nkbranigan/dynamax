@@ -38,9 +38,12 @@ def run(cmd):
 
 
 if __name__ == "__main__":
-    for T, name in sorted((T, name) for name in SIZES for T in SIZES[name]):   # cheap runs first
+    grid = sorted((T, name) for name in SIZES for T in SIZES[name])   # cheap runs first
+    for T, name in grid:
         if not os.path.exists(path(name, T)):
             subprocess.run([PYTHON, os.path.join(HERE, "make_data.py"), name, str(T)], check=True)   # sampled by ssm
+    run([PYTHON, os.path.join(HERE, "bench_ssm.py"), grid[0][1], str(grid[0][0]), "2"])   # fill numba's on-disk cache
+    for T, name in grid:
         for library in ("ssm", "dynamax"):
             if done(library, name, T):
                 continue
