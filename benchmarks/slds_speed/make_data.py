@@ -1,10 +1,11 @@
 """Sample the two notebook models for a given number of timesteps, with lindermanlab/ssm.
 
 Usage: <python with ssm installed> make_data.py <slds|rslds> <num_timesteps> [sampling seed]
-Writes scratch_data/<name>_T<num_timesteps>.npz with emissions (T, N) float64, true states and latents.
+Writes scratch_data/<name>_T<num_timesteps>.npz with emissions (T, N) float64, the true states and latents, and the
+true parameters in the recovery test's natural form (true/<group>).
 The models are those of ssm's notebooks 3-Switching-Linear-Dynamical-System.ipynb and 4-Recurrent-SLDS.ipynb (which
-docs/notebooks/slds/{slds,rslds}.ipynb port), built with the notebooks' own code and seeds and sampled by ssm, so
-the benchmark data do not depend on dynamax. Without a sampling seed the first sample follows the notebook's RNG
+docs/notebooks/slds/{slds,rslds}.ipynb port), built by the recovery test's fixture script with the notebooks' own
+code and seeds and sampled by ssm, so the benchmark data do not depend on dynamax. Without a sampling seed the first sample follows the notebook's RNG
 state, so slds_T1000 (drawn after the notebook's 100-step sample) and rslds_T10000 are the ssm notebooks' own
 datasets; other lengths are longer samples of the same models. Only path() is imported by the bench scripts, so ssm
 is imported lazily.
@@ -19,55 +20,13 @@ def path(name, num_timesteps):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scratch_data", f"{name}_T{num_timesteps}.npz")
 
 
-def slds_model():
-    """ssm notebook 3: npr.seed(0), an SLDS with orthogonal emissions and 0.95 x rotation dynamics, then its
-    100-step visualization sample (so that the next sample is the notebook's 1000-step fitting data)."""
-    import numpy.random as npr
-    import ssm
-    from ssm.util import random_rotation
-    npr.seed(0)
-    n_disc_states, latent_dim, emissions_dim = 5, 2, 10
-    true_slds = ssm.SLDS(emissions_dim, n_disc_states, latent_dim, emissions="gaussian_orthog")
-    for k in range(n_disc_states):
-        true_slds.dynamics.As[k] = .95 * random_rotation(latent_dim, theta=(k + 1) * np.pi / 20)
-    true_slds.sample(100)
-    return true_slds
+def fixtures():
+    """The recovery test's export script (dynamax/slds/fixtures/export_ssm_fixtures.py), whose builders of the two
+    notebook models and natural_params are reused here. Imported lazily: it imports ssm."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "dynamax", "slds", "fixtures"))
+    import export_ssm_fixtures
+    return export_ssm_fixtures
 
-
-def rslds_model():
-    """ssm notebook 4: npr.seed(12345) and its make_nascar_model()."""
-    import numpy.random as npr
-    import ssm
-    from ssm.util import random_rotation
-    npr.seed(12345)
-    K, D_obs, D_latent = 4, 10, 2
-    As = [random_rotation(D_latent, np.pi / 24.), random_rotation(D_latent, np.pi / 48.)]
-    centers = [np.array([+2.0, 0.]), np.array([-2.0, 0.])]
-    bs = [-(A - np.eye(D_latent)).dot(center) for A, center in zip(As, centers)]
-    As.append(np.eye(D_latent))
-    bs.append(np.array([+0.1, 0.]))
-    As.append(np.eye(D_latent))
-    bs.append(np.array([-0.25, 0.]))
-    w1, b1 = np.array([+1.0, 0.0]), np.array([-2.0])
-    w2, b2 = np.array([-1.0, 0.0]), np.array([-2.0])
-    w3, b3 = np.array([0.0, +1.0]), np.array([0.0])
-    w4, b4 = np.array([0.0, -1.0]), np.array([0.0])
-    Rs = np.vstack((100 * w1, 100 * w2, 10 * w3, 10 * w4))
-    r = np.concatenate((100 * b1, 100 * b2, 10 * b3, 10 * b4))
-    true_rslds = ssm.SLDS(D_obs, K, D_latent, transitions="recurrent_only", dynamics="diagonal_gaussian",
-                          emissions="gaussian_orthog", single_subspace=True)
-    true_rslds.dynamics.mu_init = np.tile(np.array([[0, 1]]), (K, 1))
-    true_rslds.dynamics.sigmasq_init = 1e-4 * np.ones((K, D_latent))
-    true_rslds.dynamics.As = np.array(As)
-    true_rslds.dynamics.bs = np.array(bs)
-    true_rslds.dynamics.sigmasq = 1e-4 * np.ones((K, D_latent))
-    true_rslds.transitions.Rs = Rs
-    true_rslds.transitions.r = r
-    true_rslds.emissions.inv_etas = np.log(1e-2) * np.ones((1, D_obs))
-    return true_rslds
-
-
-MODELS = {"slds": slds_model, "rslds": rslds_model}
 
 # A single long NASCAR sample drifts away from the track (max |x| about 7 at T=10k, the notebook's length, far more
 # at 100k and 1M), so longer datasets are stitched from independent 10k-step samples.
@@ -77,7 +36,7 @@ SEGMENT = {"rslds": 10000}
 def sample(name, num_timesteps, seed=None):
     """One sequence (z, x, y); for models in SEGMENT, a concatenation of independent SEGMENT-step samples."""
     import numpy.random as npr
-    model = MODELS[name]()
+    model = fixtures().NOTEBOOKS[name][0]()[0]
     if seed is not None:
         npr.seed(seed)
     seg = SEGMENT.get(name, num_timesteps)
@@ -94,8 +53,10 @@ if __name__ == "__main__":
     name, num_timesteps = sys.argv[1], int(sys.argv[2])
     seed = int(sys.argv[3]) if len(sys.argv) > 3 else None
     states, latents, emissions = sample(name, num_timesteps, seed)
+    true_model = fixtures().NOTEBOOKS[name][0]()[0]
+    true = {f"true/{k}": np.asarray(v) for k, v in fixtures().natural_params(true_model).items()}
     os.makedirs(os.path.dirname(path(name, num_timesteps)), exist_ok=True)
     np.savez(path(name, num_timesteps), emissions=np.asarray(emissions, dtype=np.float64),
-             states=np.asarray(states), latents=np.asarray(latents, dtype=np.float64))
+             states=np.asarray(states), latents=np.asarray(latents, dtype=np.float64), **true)
     print(path(name, num_timesteps), emissions.shape, "finite:", bool(np.isfinite(emissions).all()),
           "max|x|:", float(np.abs(latents).max()), "states:", np.bincount(np.asarray(states)).tolist())

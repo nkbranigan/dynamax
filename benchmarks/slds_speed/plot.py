@@ -16,7 +16,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 results = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "results.jsonl")
 out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "speed.png")
-rows = [json.loads(l) for l in open(results)]
+rows = [r for r in map(json.loads, open(results)) if not r.get("control")]
 num_iters = rows[0]["num_iters"]
 
 SERIES = [  # (key, label, color); colour = library and precision, marker and line style = quantity
