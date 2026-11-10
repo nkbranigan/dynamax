@@ -16,22 +16,17 @@ import numpy.random as npr
 warnings.filterwarnings("ignore")
 import ssm  # noqa: E402
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from accuracy import latent_r2, state_accuracy  # noqa: E402
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "..", "dynamax", "slds", "fixtures"))
+from export_ssm_fixtures import NOTEBOOKS, natural_params  # noqa: E402
 
-DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scratch_data")
-
-
-def build(name, N=10):
-    if name == "slds":
-        return ssm.SLDS(N, 5, 2, transitions="standard", dynamics="gaussian", emissions="gaussian", single_subspace=True)
-    return ssm.SLDS(N, 4, 2, transitions="recurrent_only", dynamics="diagonal_gaussian", emissions="gaussian",
-                    single_subspace=True)
+DATA = os.path.join(HERE, "..", "..", "scratch_data")
 
 
-def run(name, data, num_iters, num_init_iters=50):
+def run(fit_model, data, num_iters, num_init_iters=50):
     npr.seed(0)
-    model = build(name, data.shape[1])
+    model = fit_model()
     start = time.perf_counter()
     model.initialize([data], num_init_iters=num_init_iters)
     init_s = time.perf_counter() - start
@@ -47,15 +42,17 @@ if __name__ == "__main__":
     name, num_timesteps, num_iters = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
     saved = np.load(os.path.join(DATA, f"{name}_T{num_timesteps}.npz"))
     data = saved["emissions"]
-    run(name, data[:200], 2, num_init_iters=2)                      # warm up numba
-    init_s, fit_s, elbos, model, q = run(name, data, num_iters)
+    _, fit_model = NOTEBOOKS[name][0]()
+    run(fit_model, data[:200], 2, num_init_iters=2)                 # warm up numba
+    init_s, fit_s, elbos, model, q = run(fit_model, data, num_iters)
     x_hat = q.mean_continuous_states[0]
     z_hat = model.most_likely_states(x_hat, data)                   # Viterbi with x at the posterior mean
+    from recovery import scores  # noqa: E402    imports jax, so only after the timed fit
     print(json.dumps({
         "library": "ssm", "dtype": "float64", "dataset": name,
         "num_timesteps": num_timesteps, "num_iters": num_iters,
         "init_s": init_s, "fit_s": fit_s, "per_iter_s": fit_s / num_iters,
         "final_objective": float(elbos[-1]),
         "objective_monotone": bool(np.all(np.diff(elbos) >= -1e-3 * abs(elbos[-1]))),
-        "state_accuracy": state_accuracy(saved["states"], z_hat), "latent_r2": latent_r2(saved["latents"], x_hat),
+        **scores(name, saved, natural_params(model), x_hat, z_hat),
     }))

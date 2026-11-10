@@ -15,17 +15,11 @@ import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
-from dynamax.slds import GaussianSLDS, RecurrentGaussianSLDS
+from dynamax.slds.ssm_recovery_test import MODELS, natural_params
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from accuracy import latent_r2, state_accuracy  # noqa: E402
 from make_data import path  # noqa: E402
-
-
-def build(name):
-    if name == "slds":
-        return GaussianSLDS(5, 2, 10)
-    return RecurrentGaussianSLDS(4, 2, 10, recurrent_only=True, dynamics_cov_type="diag")
+from recovery import scores  # noqa: E402
 
 
 def timed(fn):
@@ -40,7 +34,7 @@ if __name__ == "__main__":
     dtype = jnp.float64 if x64 else jnp.float32
     saved = np.load(path(name, num_timesteps))
     emissions = jnp.asarray(saved["emissions"], dtype=dtype)
-    model = build(name)
+    model = MODELS[name]()
     key = jr.PRNGKey(0)
 
     # fit_em and initialize re-jit an inner function on every call (dynamax convention), so wrap each in an
@@ -55,8 +49,8 @@ if __name__ == "__main__":
                                                    return_posterior=True).compile())
     (fitted, lps, posterior), fit_run = timed(lambda: fit_exe(params, props, emissions))
 
-    # recovery of the sampled states and latents, scored outside the timed region (same definitions as ssm's
-    # notebooks: Viterbi path with x at the posterior mean, best relabelling; affine-aligned latents)
+    # recovery of the sampled states, latents and parameters, scored outside the timed region by the recovery test's
+    # own function (Viterbi path with x at the posterior mean, best relabelling; affine-aligned latents)
     posterior = jax.tree_util.tree_map(lambda a: a[0], posterior)
     z_hat = np.asarray(model.most_likely_states(fitted, emissions, posterior))
     x_hat = np.asarray(posterior.continuous.smoothed_means)
@@ -67,6 +61,6 @@ if __name__ == "__main__":
         "init_compile_s": init_compile, "init_s": init_run,
         "fit_compile_s": fit_compile, "fit_s": fit_run, "per_iter_s": fit_run / num_iters,
         "final_objective": float(lps[-1]), "objective_monotone": bool(jnp.all(jnp.diff(lps) >= -1e-3 * jnp.abs(lps[-1]))),
-        "state_accuracy": state_accuracy(saved["states"], z_hat), "latent_r2": latent_r2(saved["latents"], x_hat),
+        **scores(name, saved, natural_params(fitted), x_hat, z_hat),
         "devices": [str(d) for d in jax.devices()],
     }))

@@ -15,7 +15,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 results = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "results.jsonl")
 out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "speed_total.png")
-rows = [json.loads(l) for l in open(results)]
+rows = [r for r in map(json.loads, open(results)) if not r.get("control")]
 num_iters = rows[0]["num_iters"]
 
 DATASETS = [("slds", "SLDS of ssm's notebook 3 (K=5, D=2, N=10)"), ("rslds", "NASCAR rSLDS of ssm's notebook 4 (K=4, D=2, N=10)")]
