@@ -2,8 +2,9 @@
 
 Usage: python run.py
 Each dataset has its own grid (SIZES): the SLDS from the notebook's 1000 steps up to 100k, the NASCAR rSLDS from the
-notebook's 10000 steps up to 100k. Appends one JSON line per run to results.jsonl (skipping runs already present).
-Each run is a subprocess so the libraries never share a process.
+notebook's 10000 steps up to 100k. Sizes above the notebook's are batches of independent sequences of the notebook's
+length. Samples every dataset and writes results.jsonl afresh, one JSON line per run. Each run is a subprocess so the
+libraries never share a process.
 """
 import json
 import os
@@ -11,21 +12,12 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-from make_data import path  # noqa: E402
 
 # dynamax[dev] + ssm eb6c8aa, see dynamax/slds/fixtures/README.md
 PYTHON = "/Users/nicholasbranigan/opt/miniconda3/envs/dyna_dev_ssm/bin/python"
 RESULTS = os.path.join(HERE, "results.jsonl")
 NUM_ITERS = 100
 SIZES = {"slds": [1000, 10000, 100000], "rslds": [10000, 100000]}
-
-
-def done(library, name, num_timesteps):
-    if not os.path.exists(RESULTS):
-        return False
-    return any((r["library"], r["dataset"], r["num_timesteps"]) == (library, name, num_timesteps)
-               for r in map(json.loads, open(RESULTS)))
 
 
 def run(cmd):
@@ -40,13 +32,11 @@ def run(cmd):
 if __name__ == "__main__":
     grid = sorted((T, name) for name in SIZES for T in SIZES[name])   # cheap runs first
     for T, name in grid:
-        if not os.path.exists(path(name, T)):
-            subprocess.run([PYTHON, os.path.join(HERE, "make_data.py"), name, str(T)], check=True)   # sampled by ssm
+        subprocess.run([PYTHON, os.path.join(HERE, "make_data.py"), name, str(T)], check=True)   # sampled by ssm
     run([PYTHON, os.path.join(HERE, "bench_ssm.py"), grid[0][1], str(grid[0][0]), "2"])   # fill numba's on-disk cache
+    open(RESULTS, "w").close()
     for T, name in grid:
         for library in ("ssm", "dynamax"):
-            if done(library, name, T):
-                continue
             res = run([PYTHON, os.path.join(HERE, f"bench_{library}.py"), name, str(T), str(NUM_ITERS)])
             if res is None:
                 continue

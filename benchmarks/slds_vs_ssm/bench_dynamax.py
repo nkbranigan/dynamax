@@ -52,9 +52,10 @@ if __name__ == "__main__":
 
     def score(params, posterior):
         """Recovery of the sampled states, latents and parameters (Viterbi path with x at the posterior mean)."""
-        posterior = jax.tree_util.tree_map(lambda a: a[0], posterior)
-        z_hat = np.asarray(model.most_likely_states(params, emissions, posterior))
-        return recovery(name, natural_params(params), np.asarray(posterior.continuous.smoothed_means), z_hat, saved)
+        z_hat = jax.vmap(lambda y, q: model.most_likely_states(params, y, q))(emissions, posterior)
+        x_hat = np.asarray(posterior.continuous.smoothed_means)
+        return recovery(name, natural_params(params), x_hat.reshape(-1, x_hat.shape[-1]),
+                        np.asarray(z_hat).reshape(-1), saved)
 
     print(json.dumps({
         "library": "dynamax", "dataset": name, "num_timesteps": num_timesteps, "num_iters": num_iters,

@@ -29,14 +29,14 @@ from make_data import path  # noqa: E402
 CONTROL_SEED = 1
 
 
-def run(fit_model, data, num_iters):
+def run(fit_model, datas, num_iters):
     npr.seed(0)
     model = fit_model()
     start = time.perf_counter()
-    model.initialize([data], num_init_iters=50)
+    model.initialize(datas, num_init_iters=50)
     init_s = time.perf_counter() - start
     start = time.perf_counter()
-    _, q = model.fit([data], method="laplace_em", variational_posterior="structured_meanfield",
+    _, q = model.fit(datas, method="laplace_em", variational_posterior="structured_meanfield",
                      num_iters=num_iters, initialize=False, verbose=0)
     fit_s = time.perf_counter() - start
     return init_s, fit_s, model, q
@@ -45,23 +45,23 @@ def run(fit_model, data, num_iters):
 if __name__ == "__main__":
     name, num_timesteps, num_iters = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
     saved = np.load(path(name, num_timesteps))
-    data = saved[f"recovery/{name}/y"]
+    datas = list(saved[f"recovery/{name}/y"])
     _, fit_model = NOTEBOOKS[name][0]()
-    init_s, fit_s, model, q = run(fit_model, data, num_iters)
+    init_s, fit_s, model, q = run(fit_model, datas, num_iters)
 
     npr.seed(CONTROL_SEED)
     control = fit_model()
     if hasattr(control.transitions, "log_Ps"):
         control.transitions.log_Ps = np.log(npr.dirichlet(np.ones(control.K), size=control.K))
-    _, control_q = control.approximate_posterior([data], method="laplace_em",
+    _, control_q = control.approximate_posterior(datas, method="laplace_em",
                                                  variational_posterior="structured_meanfield", verbose=0)
 
     from dynamax.slds.ssm_recovery_test import recovery  # noqa: E402    imports jax, so only after the timed fit
 
     def score(model, q):
-        x_hat = q.mean_continuous_states[0]
-        z_hat = model.most_likely_states(x_hat, data)
-        return recovery(name, natural_params(model), x_hat, z_hat, saved)
+        x_hat = q.mean_continuous_states
+        z_hat = [model.most_likely_states(x, y) for x, y in zip(x_hat, datas)]
+        return recovery(name, natural_params(model), np.concatenate(x_hat), np.concatenate(z_hat), saved)
 
     print(json.dumps({
         "library": "ssm", "dataset": name, "num_timesteps": num_timesteps, "num_iters": num_iters,
