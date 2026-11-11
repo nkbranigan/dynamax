@@ -1,8 +1,8 @@
 """Run the benchmark: both notebook models x timesteps x (ssm, dynamax), in float64.
 
 Usage: python run.py
-Each dataset has its own grid (SIZES): the SLDS from the notebook's 1000 steps up to 100k, the NASCAR rSLDS from the
-notebook's 10000 steps up to 100k. Sizes above the notebook's are batches of independent sequences of the notebook's
+Each dataset has its own grid (SIZES): the SLDS from the notebook's 1000 steps up to 1M, the NASCAR rSLDS from the
+notebook's 10000 steps up to 1M. Sizes above the notebook's are batches of independent sequences of the notebook's
 length. Samples every dataset and writes results.jsonl afresh, one JSON line per run. Each run is a subprocess so the
 libraries never share a process.
 """
@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PYTHON = "/Users/nicholasbranigan/opt/miniconda3/envs/dyna_dev_ssm/bin/python"
 RESULTS = os.path.join(HERE, "results.jsonl")
 NUM_ITERS = 100
-SIZES = {"slds": [1000, 10000, 100000], "rslds": [10000, 100000]}
+SIZES = {"slds": [1000, 10000, 100000, 1000000], "rslds": [10000, 100000, 1000000]}
 
 
 def run(cmd):
