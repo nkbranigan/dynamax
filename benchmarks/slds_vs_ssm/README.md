@@ -10,7 +10,6 @@ pip install cython
 pip install --no-build-isolation "git+https://github.com/lindermanlab/ssm.git@eb6c8aa"
 
 # set PYTHON at the top of run.py to this environment's python (`which python`)
-rm benchmarks/slds_vs_ssm/results.jsonl   # run.py skips fits already in the file
 python benchmarks/slds_vs_ssm/run.py      # about 35 minutes; writes the datasets and results.jsonl
 python benchmarks/slds_vs_ssm/plot.py     # writes speed.png, speed_total.png and recovery.png
 ```

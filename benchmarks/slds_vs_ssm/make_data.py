@@ -2,13 +2,13 @@
 
 Usage: <python with lindermanlab/ssm installed> make_data.py <slds|rslds> <num_timesteps>
 Writes scratch_data/<name>_T<num_timesteps>.npz, keyed as the recovery test's fixture: recovery/<name>/y (emissions,
-(T, N) float64), z and x (the true states and latents) and true/<group> (the true parameters in the test's natural
-form).
+(num_sequences, sequence length, N) float64), z and x (the true states and latents, the sequences joined end to end)
+and true/<group> (the true parameters in the test's natural form).
 The models are those of ssm's notebooks 3-Switching-Linear-Dynamical-System.ipynb and 4-Recurrent-SLDS.ipynb (which
 docs/notebooks/slds/{slds,rslds}.ipynb port), built by the recovery test's fixture script with the notebooks' own
-code and seeds and sampled by ssm, so the benchmark data do not depend on dynamax. The first sample follows the
+code and seeds and sampled by ssm, so the benchmark data do not depend on dynamax. The first sequence follows the
 notebook's RNG state, so slds_T1000 (drawn after the notebook's 100-step sample) and rslds_T10000 are the ssm
-notebooks' own datasets; other lengths are longer samples of the same models.
+notebooks' own datasets.
 """
 import os
 import sys
@@ -22,21 +22,20 @@ def path(name, num_timesteps):
     return os.path.join(HERE, "..", "..", "scratch_data", f"{name}_T{num_timesteps}.npz")
 
 
-# A single long NASCAR sample drifts away from the track (max |x| about 7 at T=10k, the notebook's length, far more
-# at 100k and 1M), so longer datasets are stitched from independent 10k-step samples.
-SEGMENT = {"rslds": 10000}
+# Datasets longer than the notebook's are batches of independent sequences of the notebook's length. The rSLDS needs
+# this: a single long NASCAR sequence drifts away from the track (max |x| about 7 at T=10k, the notebook's length,
+# far more at 100k and 1M). The SLDS follows the same rule.
+SEQUENCE_LENGTH = {"slds": 1000, "rslds": 10000}
 
 
 def sample(model, name, num_timesteps):
-    """One sequence (z, x, y); for models in SEGMENT, a concatenation of independent SEGMENT-step samples."""
-    seg = SEGMENT.get(name, num_timesteps)
-    if num_timesteps <= seg:
-        return model.sample(num_timesteps)
-    assert num_timesteps % seg == 0, f"num_timesteps must be a multiple of {seg} for {name}"
-    pieces = [model.sample(seg) for _ in range(num_timesteps // seg)]
-    for i, (_, x, _) in enumerate(pieces):
-        assert np.abs(x).max() < 10, f"segment {i} left the track: max|x| = {np.abs(x).max():.2f}"
-    return tuple(np.concatenate([p[j] for p in pieces]) for j in range(3))
+    """(z, x, y) for independent sequences of SEQUENCE_LENGTH steps: z and x joined end to end, y stacked."""
+    length = SEQUENCE_LENGTH[name]
+    assert num_timesteps % length == 0, f"num_timesteps must be a multiple of {length} for {name}"
+    zs, xs, ys = zip(*(model.sample(length) for _ in range(num_timesteps // length)))
+    for i, x in enumerate(xs):
+        assert name != "rslds" or np.abs(x).max() < 10, f"sequence {i} left the track: max|x| = {np.abs(x).max():.2f}"
+    return np.concatenate(zs), np.concatenate(xs), np.stack(ys)
 
 
 if __name__ == "__main__":

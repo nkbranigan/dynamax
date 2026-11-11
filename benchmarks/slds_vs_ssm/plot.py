@@ -14,11 +14,15 @@ Usage: python plot.py
 """
 import json
 import os
+import sys
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from make_data import SEQUENCE_LENGTH  # noqa: E402
+
 rows = [json.loads(line) for line in open(os.path.join(HERE, "results.jsonl"))]
 num_iters = rows[0]["num_iters"]
 COLORS = {"ssm": "#eb6834", "dynamax": "#1c5cab"}
@@ -28,6 +32,7 @@ TOTAL = {"ssm": "initialization + EM", "dynamax": "initialization + compile + EM
 SKIP = {"rslds": {"Q"}}
 FLOOR = -0.05                                               # scores below 0 are drawn here
 MARKERS = dict(zip(sorted({r["num_timesteps"] for r in rows}), "os^Dv"))   # marker = number of timesteps
+BATCH_NOTE = {d: f"above {n:,}: independent sequences of {n:,}" for d, n in SEQUENCE_LENGTH.items()}
 
 
 def select(library, dataset):
@@ -67,7 +72,7 @@ for ax, total_ax, (dataset, title) in zip(axes, total_axes, DATASETS.items()):
         a.set_xscale("log")
         a.set_yscale("log")
         a.set_title(title, fontsize=11)
-        a.set_xlabel("timesteps T")
+        a.set_xlabel(f"timesteps T ({BATCH_NOTE[dataset]})")
         a.grid(True, which="major", color="#e4e2dc", lw=0.6)
         a.grid(True, which="minor", color="#f0efec", lw=0.4)
         a.set_axisbelow(True)
@@ -109,7 +114,7 @@ for ax, (dataset, title) in zip(axes, DATASETS.items()):
     ax.set_ylim(2 * FLOOR, 1.05)
     ax.set_yticks([FLOOR, 0, 0.2, 0.4, 0.6, 0.8, 1.0], ["< 0", "0", "0.2", "0.4", "0.6", "0.8", "1.0"])
     ax.axhspan(2 * FLOOR, 0, color="#f0efec", zorder=0)
-    ax.set_title(title, fontsize=11)
+    ax.set_title(f"{title}; T {BATCH_NOTE[dataset]}", fontsize=11)
     ax.set_ylabel("recovery")
     ax.grid(True, axis="y", color="#e4e2dc", lw=0.6)
     for g in range(1, len(groups)):                         # a heavier line after the two state scores
