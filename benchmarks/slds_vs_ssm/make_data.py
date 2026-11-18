@@ -1,14 +1,14 @@
 """Sample the two notebook models for a given number of timesteps, with lindermanlab/ssm.
 
 Usage: <python with lindermanlab/ssm installed> make_data.py <slds|rslds> <num_timesteps>
-Writes scratch_data/<name>_T<num_timesteps>.npz, keyed as the recovery test's fixture: recovery/<name>/y (emissions,
-(num_sequences, sequence length, N) float64), z and x (the true states and latents, the sequences joined end to end)
-and true/<group> (the true parameters in the test's natural form).
+Writes scratch_data/<name>_T<num_timesteps>.npz, keyed as ssm's saved outputs for the recovery test: recovery/<name>/y
+(emissions, (num_sequences, sequence length, N) float64), z and x (the true states and latents, the sequences joined
+end to end), and true/<letter> (the true parameters, named by the letters of dynamax's model docstrings).
 The models are those of ssm's notebooks 3-Switching-Linear-Dynamical-System.ipynb and 4-Recurrent-SLDS.ipynb (which
-docs/notebooks/slds/{slds,rslds}.ipynb port), built by the recovery test's fixture script with the notebooks' own
-code and seeds and sampled by ssm, so the benchmark data do not depend on dynamax. The first sequence follows the
-notebook's RNG state, so slds_T1000 (drawn after the notebook's 100-step sample) and rslds_T10000 are the ssm
-notebooks' own datasets.
+docs/notebooks/slds/{slds,rslds}.ipynb port), built by dynamax/slds/fixtures/export_ssm_fixtures.py with the
+notebooks' own code and seeds and sampled by ssm, so the benchmark data do not depend on dynamax. The first sequence
+follows the notebook's RNG state, so slds_T1000 (drawn after the notebook's 100-step sample) and rslds_T10000 are the
+ssm notebooks' own datasets.
 """
 import os
 import sys
