@@ -6,7 +6,7 @@ iterations).
 speed_total.png: total fit time vs timesteps: ssm = initialization + EM iterations; dynamax = initialization
 (including its compile) + EM iterations (including their compile).
 recovery.png: recovery as scored by dynamax/slds/ssm_recovery_test.py: discrete state recovery, continuous state
-recovery, then the variance explained of each parameter group. Marker = number of timesteps. Within a column each
+recovery, then the parameter recovery scores. Marker = number of timesteps. Within a column each
 number of timesteps has one (ssm, dynamax) pair, joined by a line. Hollow markers are the controls (random
 parameters, no learning). The axis runs from 0 to 1 and every score below 0 is drawn on one line under it. The
 dynamics noise covariance Q is left out of the rSLDS panel.
@@ -109,7 +109,7 @@ for ax, (dataset, title) in zip(axes, DATASETS.items()):
                 ax.plot([xs[library]], [control if control >= 0 else FLOOR], marker=marker, ms=11, ls="none",
                         color=color, mfc="none", mew=1.5, zorder=4)
     ax.set_xticks(range(len(groups)),
-                  [k.replace(" recovery", "").replace("_", " ").replace(" ", "\n") for k in groups])
+                  [k.replace(" recovery", "").replace("_", " ").replace(" ", "\n", 1) for k in groups])
     ax.set_xlim(-0.5, len(groups) - 0.5)
     ax.set_ylim(2 * FLOOR, 1.05)
     ax.set_yticks([FLOOR, 0, 0.2, 0.4, 0.6, 0.8, 1.0], ["< 0", "0", "0.2", "0.4", "0.6", "0.8", "1.0"])
