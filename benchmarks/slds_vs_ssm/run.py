@@ -12,9 +12,6 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-
-# dynamax[dev] + ssm eb6c8aa, see dynamax/slds/fixtures/README.md
-PYTHON = "/Users/nicholasbranigan/opt/miniconda3/envs/dyna_dev_ssm/bin/python"
 RESULTS = os.path.join(HERE, "results.jsonl")
 NUM_ITERS = 100
 SIZES = {"slds": [1000, 10000, 100000, 1000000], "rslds": [10000, 100000, 1000000]}
@@ -31,13 +28,14 @@ def run(cmd):
 
 if __name__ == "__main__":
     grid = sorted((T, name) for name in SIZES for T in SIZES[name])   # cheap runs first
-    for T, name in grid:
-        subprocess.run([PYTHON, os.path.join(HERE, "make_data.py"), name, str(T)], check=True)   # sampled by ssm
-    run([PYTHON, os.path.join(HERE, "bench_ssm.py"), grid[0][1], str(grid[0][0]), "2"])   # fill numba's on-disk cache
+    for T, name in grid:   # sampled by ssm
+        subprocess.run([sys.executable, os.path.join(HERE, "make_data.py"), name, str(T)], check=True)
+    # fill numba's on-disk cache
+    run([sys.executable, os.path.join(HERE, "bench_ssm.py"), grid[0][1], str(grid[0][0]), "2"])
     open(RESULTS, "w").close()
     for T, name in grid:
         for library in ("ssm", "dynamax"):
-            res = run([PYTHON, os.path.join(HERE, f"bench_{library}.py"), name, str(T), str(NUM_ITERS)])
+            res = run([sys.executable, os.path.join(HERE, f"bench_{library}.py"), name, str(T), str(NUM_ITERS)])
             if res is None:
                 continue
             with open(RESULTS, "a") as f:
