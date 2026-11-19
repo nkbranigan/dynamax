@@ -1,8 +1,8 @@
 """Sample the benchmark's datasets from the two notebook models, with lindermanlab/ssm.
 
 Usage: <python with lindermanlab/ssm installed> make_data.py
-Each model has its own sizes (SIZES): the SLDS from the notebook's 1000 steps up to 1M, the NASCAR rSLDS from the
-notebook's 10000 steps up to 1M. Sizes above the notebook's are batches of independent sequences of the notebook's
+Each model has its own sizes (SIZES): the SLDS from the notebook's 1000 steps up to 10M, the NASCAR rSLDS from the
+notebook's 10000 steps up to 10M. Sizes above the notebook's are batches of independent sequences of the notebook's
 length. Writes scratch_data/<name>_T<num_timesteps>.npz, keyed as ssm's saved outputs for the recovery test:
 recovery/<name>/y (emissions, (num_sequences, sequence length, N) float64), z and x (the true states and latents,
 the sequences joined end to end), and true/<letter> (the true parameters, named by the letters of dynamax's model
@@ -29,7 +29,7 @@ def path(name, num_timesteps):
 # this: a single long NASCAR sequence drifts away from the track (max |x| about 7 at T=10k, the notebook's length,
 # far more at 100k and 1M). The SLDS follows the same rule.
 SEQUENCE_LENGTH = {"slds": 1000, "rslds": 10000}
-SIZES = {"slds": [1000, 10000, 100000, 1000000], "rslds": [10000, 100000, 1000000]}
+SIZES = {"slds": [1000, 10000, 100000, 1000000, 10000000], "rslds": [10000, 100000, 1000000, 10000000]}
 
 
 def sample(model, name, num_timesteps):

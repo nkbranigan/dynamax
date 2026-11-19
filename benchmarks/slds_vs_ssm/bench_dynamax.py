@@ -78,7 +78,12 @@ def bench(name, num_timesteps, num_iters=NUM_ITERS):
 if __name__ == "__main__":
     open(RESULTS, "w").close()
     for num_timesteps, name in sorted((T, name) for name in SIZES for T in SIZES[name]):   # cheap fits first
-        row = bench(name, num_timesteps)
+        try:
+            row = bench(name, num_timesteps)
+        except Exception as error:                        # such as running out of memory: go on to the next dataset
+            print(f"dynamax {name:6s} T={num_timesteps:<8d} FAILED: {type(error).__name__}: {str(error)[:300]}",
+                  flush=True)
+            continue
         with open(RESULTS, "a") as f:
             f.write(json.dumps(row) + "\n")
         print(f"dynamax {name:6s} T={num_timesteps:<8d} init {row['init_s']:7.2f}s  fit {row['fit_s']:8.2f}s  "
