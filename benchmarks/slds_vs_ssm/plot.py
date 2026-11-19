@@ -1,7 +1,7 @@
 """Plot the results as three figures, one panel per dataset. Color = library, and the device for dynamax.
 
-Reads cpu_ssm.jsonl and cpu_dynamax.jsonl, and gpu_dynamax.jsonl when it is there (the speed figures then draw
-dynamax on the GPU as a third series).
+Reads each series' results files, one per model: cpu_ssm_<model>.jsonl and cpu_dynamax_<model>.jsonl, and
+gpu_dynamax_<model>.jsonl when they are there (the speed figures then draw dynamax on the GPU as a third series).
 
 speed.png: seconds vs timesteps, log-log. Filled circles + solid line = 100 EM iterations (execution only); hollow
 circles + dashed line = compile (dynamax only); triangles + dotted line = initialization (PCA + 50 ARHMM EM
@@ -27,14 +27,14 @@ from make_data import SEQUENCE_LENGTH  # noqa: E402
 
 
 
-def load(name):
-    """The rows of one results file, or none when the file is not there."""
-    file = os.path.join(HERE, name)
-    return [json.loads(line) for line in open(file)] if os.path.exists(file) else []
+def load(series):
+    """The rows of one series, from its results files (one per model); none when the files are not there."""
+    files = [os.path.join(HERE, f"{series}_{model}.jsonl") for model in SEQUENCE_LENGTH]
+    return [json.loads(line) for file in files if os.path.exists(file) for line in open(file)]
 
 
-# one series per results file; the GPU series is optional
-ROWS = {"ssm": load("cpu_ssm.jsonl"), "dynamax": load("cpu_dynamax.jsonl"), "dynamax on GPU": load("gpu_dynamax.jsonl")}
+# one series per library and device; the GPU series is optional
+ROWS = {"ssm": load("cpu_ssm"), "dynamax": load("cpu_dynamax"), "dynamax on GPU": load("gpu_dynamax")}
 SERIES = {"ssm": "#eb6834", "dynamax": "#1c5cab", "dynamax on GPU": "#6fb1e6"}
 SERIES = {series: color for series, color in SERIES.items() if ROWS[series]}
 COLORS = {library: SERIES[library] for library in ("ssm", "dynamax")}      # the two CPU series of recovery.png
