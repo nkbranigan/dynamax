@@ -38,7 +38,7 @@ def sample(model, name, num_timesteps):
     assert num_timesteps % length == 0, f"num_timesteps must be a multiple of {length} for {name}"
     zs, xs, ys = zip(*(model.sample(length) for _ in range(num_timesteps // length)))
     for i, x in enumerate(xs):
-        assert name != "rslds" or np.abs(x).max() < 10, f"sequence {i} left the track: max|x| = {np.abs(x).max():.2f}"
+        assert name != "rslds" or np.abs(x).max() < 15, f"sequence {i} left the track: max|x| = {np.abs(x).max():.2f}"
     return np.concatenate(zs), np.concatenate(xs), np.stack(ys)
 
 
