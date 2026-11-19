@@ -8,6 +8,7 @@ conda create -n dyna_dev_ssm python=3.10 -y && conda activate dyna_dev_ssm
 pip install -e '.[dev]'
 pip install cython
 pip install --no-build-isolation "git+https://github.com/lindermanlab/ssm.git@eb6c8aa"
+pip install "jax[cuda12]"                 # optional: GPU support, for bench_dynamax.py --device gpu
 
 python benchmarks/slds_vs_ssm/make_data.py                    # samples the seven datasets with ssm
 python benchmarks/slds_vs_ssm/bench_ssm.py                    # about 4.5 hours; writes cpu_ssm.jsonl
