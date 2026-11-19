@@ -5,8 +5,7 @@ Fits every dataset of make_data.py, smallest first, on the CPU (the default) or 
 cpu_dynamax.jsonl or gpu_dynamax.jsonl, one JSON line per dataset. initialize and fit_em are wrapped in an outer
 jax.jit and compiled ahead of time (jit(...).lower(...).compile(): tracing, lowering and XLA compilation, timed as
 *_compile_s); the executable is then run once (timed as *_s). Outside the timed region each fit is scored by the
-recovery test's own function, and so is a control: parameters drawn from their priors by initialize(method="prior")
-and no learning, with the states inferred by approximate_posterior at its defaults.
+recovery test's own function.
 """
 import argparse
 import json
@@ -41,7 +40,7 @@ def timed(fn):
 
 
 def bench(name, num_timesteps, num_iters=NUM_ITERS):
-    """One row of results: the times of one fit, and the recovery scores of the fit and of the control."""
+    """One row of results: the times of one fit and its recovery scores."""
     saved = np.load(path(name, num_timesteps))
     emissions = jnp.asarray(saved[f"recovery/{name}/y"])
     model = MODELS[name]()
@@ -57,19 +56,15 @@ def bench(name, num_timesteps, num_iters=NUM_ITERS):
                                                    return_posterior=True).compile())
     (fitted, _, posterior), fit_run = timed(lambda: fit_exe(params, props, emissions))
 
-    control, _ = model.initialize(key, method="prior")
-    control_posterior, _ = model.approximate_posterior(control, emissions)
-
-    def score(params, posterior):
-        """Recovery of the sampled states, latents and parameters (Viterbi path with x at the posterior mean)."""
-        z_hat = jax.vmap(lambda y, q: model.most_likely_states(params, y, q))(emissions, posterior)
-        x_hat = np.asarray(posterior.continuous.smoothed_means)
-        return recovery(name, natural_params(params), x_hat.reshape(-1, x_hat.shape[-1]),
-                        np.asarray(z_hat).reshape(-1), saved)
+    # Recovery of the sampled states, latents, and parameters (Viterbi path with x at the posterior mean).
+    z_hat = jax.vmap(lambda y, q: model.most_likely_states(fitted, y, q))(emissions, posterior)
+    x_hat = np.asarray(posterior.continuous.smoothed_means)
+    scores = recovery(name, natural_params(fitted), x_hat.reshape(-1, x_hat.shape[-1]),
+                      np.asarray(z_hat).reshape(-1), saved)
 
     row = {"library": "dynamax", "dataset": name, "num_timesteps": num_timesteps, "num_iters": num_iters,
            "init_compile_s": init_compile, "init_s": init_run, "fit_compile_s": fit_compile, "fit_s": fit_run,
-           "recovery": score(fitted, posterior), "control": score(control, control_posterior)}
+           "recovery": scores}
     if DEVICE == "gpu":
         row["gpu"] = jax.devices()[0].device_kind
     return row

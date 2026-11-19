@@ -10,9 +10,8 @@ speed_total.png: total fit time vs timesteps: ssm = initialization + EM iteratio
 (including its compile) + EM iterations (including their compile). The labels are ssm's time over dynamax's.
 recovery.png (CPU fits only): recovery as scored by dynamax/slds/ssm_recovery_test.py: discrete state recovery,
 continuous state recovery, then the parameter recovery scores. Marker = number of timesteps. Within a column each
-number of timesteps has one (ssm, dynamax) pair, joined by a line. Hollow markers are the controls (random
-parameters, no learning). The axis runs from 0 to 1 and every score below 0 is drawn on one line under it. The
-dynamics noise covariance Q is left out of the rSLDS panel.
+number of timesteps has one (ssm, dynamax) pair, joined by a line. The dynamics noise covariance Q is left out of
+the rSLDS panel.
 Usage: python plot.py
 """
 import json
@@ -48,7 +47,6 @@ DATASETS = {"slds": "SLDS of ssm's notebook 3 (K=5, D=2, N=10)",
 TOTAL = {"ssm": "initialization + EM", "dynamax": "initialization + compile + EM",
          "dynamax on GPU": "initialization + compile + EM"}
 SKIP = {"rslds": {"Q"}}
-FLOOR = -0.05                                               # scores below 0 are drawn here
 MARKERS = dict(zip(sorted({r["num_timesteps"] for r in rows}), "os^Dv"))   # marker = number of timesteps
 BATCH_NOTE = {d: f"above {n:,}: independent sequences of {n:,}" for d, n in SEQUENCE_LENGTH.items()}
 
@@ -130,16 +128,12 @@ for ax, (dataset, title) in zip(axes, DATASETS.items()):
                     lw=1.5, zorder=1)
             for library, color in COLORS.items():
                 r = sel[library][i]
-                marker, control = MARKERS[r["num_timesteps"]], r["control"][group]
-                ax.plot([xs[library]], [r["recovery"][group]], marker=marker, ms=7, ls="none", color=color, zorder=3)
-                ax.plot([xs[library]], [control if control >= 0 else FLOOR], marker=marker, ms=11, ls="none",
-                        color=color, mfc="none", mew=1.5, zorder=4)
+                ax.plot([xs[library]], [r["recovery"][group]], marker=MARKERS[r["num_timesteps"]], ms=7, ls="none",
+                        color=color, zorder=3)
     ax.set_xticks(range(len(groups)),
                   [k.replace(" recovery", "").replace("_", " ").replace(" ", "\n", 1) for k in groups])
     ax.set_xlim(-0.5, len(groups) - 0.5)
-    ax.set_ylim(2 * FLOOR, 1.05)
-    ax.set_yticks([FLOOR, 0, 0.2, 0.4, 0.6, 0.8, 1.0], ["< 0", "0", "0.2", "0.4", "0.6", "0.8", "1.0"])
-    ax.axhspan(2 * FLOOR, 0, color="#f0efec", zorder=0)
+    ax.set_ylim(0, 1.05)
     ax.set_title(f"{title}; T {BATCH_NOTE[dataset]}", fontsize=11)
     ax.set_ylabel("recovery")
     ax.grid(True, axis="y", color="#e4e2dc", lw=0.6)
@@ -152,8 +146,6 @@ axes[1].set_xlabel("state recovery, then parameter recovery by group "
 handles = [Line2D([], [], marker="o", ms=7, ls="none", color=color, label=library) for library, color in COLORS.items()]
 handles += [Line2D([], [], marker=marker, ms=7, ls="none", color="#52514e", label=f"T = {T:,}")
             for T, marker in MARKERS.items()]
-handles += [Line2D([], [], marker="o", ms=11, ls="none", color="#52514e", mfc="none", mew=1.5,
-                   label="hollow: control (random parameters, no learning)")]
 fig.legend(handles=handles, loc="lower center", ncol=len(handles), fontsize=9, frameon=False, bbox_to_anchor=(0.5, 0.0))
 fig.suptitle(f"Recovery of the true states and parameters after PCA+ARHMM initialization and {num_iters} Laplace EM "
              f"iterations (CPU fits; single run per point)", fontsize=10)
