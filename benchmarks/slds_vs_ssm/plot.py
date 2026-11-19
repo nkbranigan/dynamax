@@ -1,12 +1,15 @@
-"""Plot results.jsonl as three figures, one panel per dataset. Color = library.
+"""Plot the results as three figures, one panel per dataset. Color = library, and the device for dynamax.
+
+Reads cpu_ssm.jsonl and cpu_dynamax.jsonl, and gpu_dynamax.jsonl when it is there (the speed figures then draw
+dynamax on the GPU as a third series).
 
 speed.png: seconds vs timesteps, log-log. Filled circles + solid line = 100 EM iterations (execution only); hollow
 circles + dashed line = compile (dynamax only); triangles + dotted line = initialization (PCA + 50 ARHMM EM
 iterations).
 speed_total.png: total fit time vs timesteps: ssm = initialization + EM iterations; dynamax = initialization
-(including its compile) + EM iterations (including their compile).
-recovery.png: recovery as scored by dynamax/slds/ssm_recovery_test.py: discrete state recovery, continuous state
-recovery, then the parameter recovery scores. Marker = number of timesteps. Within a column each
+(including its compile) + EM iterations (including their compile). The labels are ssm's time over dynamax's.
+recovery.png (CPU fits only): recovery as scored by dynamax/slds/ssm_recovery_test.py: discrete state recovery,
+continuous state recovery, then the parameter recovery scores. Marker = number of timesteps. Within a column each
 number of timesteps has one (ssm, dynamax) pair, joined by a line. Hollow markers are the controls (random
 parameters, no learning). The axis runs from 0 to 1 and every score below 0 is drawn on one line under it. The
 dynamics noise covariance Q is left out of the rSLDS panel.
@@ -23,22 +26,36 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from make_data import SEQUENCE_LENGTH  # noqa: E402
 
-rows = [json.loads(line) for line in open(os.path.join(HERE, "results.jsonl"))]
+
+
+def load(name):
+    """The rows of one results file, or none when the file is not there."""
+    file = os.path.join(HERE, name)
+    return [json.loads(line) for line in open(file)] if os.path.exists(file) else []
+
+
+# one series per results file; the GPU series is optional
+ROWS = {"ssm": load("cpu_ssm.jsonl"), "dynamax": load("cpu_dynamax.jsonl"), "dynamax on GPU": load("gpu_dynamax.jsonl")}
+SERIES = {"ssm": "#eb6834", "dynamax": "#1c5cab", "dynamax on GPU": "#6fb1e6"}
+SERIES = {series: color for series, color in SERIES.items() if ROWS[series]}
+COLORS = {library: SERIES[library] for library in ("ssm", "dynamax")}      # the two CPU series of recovery.png
+rows = ROWS["ssm"] + ROWS["dynamax"]
+assert len({r["num_iters"] for series in SERIES for r in ROWS[series]}) == 1, "the files differ in num_iters"
 num_iters = rows[0]["num_iters"]
-COLORS = {"ssm": "#eb6834", "dynamax": "#1c5cab"}
+GPU = f"; GPU: {ROWS['dynamax on GPU'][0]['gpu']}" if "dynamax on GPU" in SERIES else ""
 DATASETS = {"slds": "SLDS of ssm's notebook 3 (K=5, D=2, N=10)",
             "rslds": "NASCAR rSLDS of ssm's notebook 4 (K=4, D=2, N=10)"}
-TOTAL = {"ssm": "initialization + EM", "dynamax": "initialization + compile + EM"}
+TOTAL = {"ssm": "initialization + EM", "dynamax": "initialization + compile + EM",
+         "dynamax on GPU": "initialization + compile + EM"}
 SKIP = {"rslds": {"Q"}}
 FLOOR = -0.05                                               # scores below 0 are drawn here
 MARKERS = dict(zip(sorted({r["num_timesteps"] for r in rows}), "os^Dv"))   # marker = number of timesteps
 BATCH_NOTE = {d: f"above {n:,}: independent sequences of {n:,}" for d, n in SEQUENCE_LENGTH.items()}
 
 
-def select(library, dataset):
-    """The rows of one library on one dataset, by increasing number of timesteps."""
-    return sorted((r for r in rows if (r["library"], r["dataset"]) == (library, dataset)),
-                  key=lambda r: r["num_timesteps"])
+def select(series, dataset):
+    """The rows of one series on one dataset, by increasing number of timesteps."""
+    return sorted((r for r in ROWS[series] if r["dataset"] == dataset), key=lambda r: r["num_timesteps"])
 
 
 def save(fig, name, rect):
@@ -52,22 +69,25 @@ fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), sharey=True)
 total_fig, total_axes = plt.subplots(1, 2, figsize=(11, 4.4), sharey=True)
 for ax, total_ax, (dataset, title) in zip(axes, total_axes, DATASETS.items()):
     totals = {}
-    for library, color in COLORS.items():
-        sel = select(library, dataset)
+    for series, color in SERIES.items():
+        sel = select(series, dataset)
         T = [r["num_timesteps"] for r in sel]
         compile_s = [r.get("init_compile_s", 0) + r.get("fit_compile_s", 0) for r in sel]   # 0 for ssm
-        totals[library] = [r["init_s"] + r["fit_s"] + c for r, c in zip(sel, compile_s)]
+        totals[series] = [r["init_s"] + r["fit_s"] + c for r, c in zip(sel, compile_s)]
         ax.plot(T, [r["fit_s"] for r in sel], marker="o", ms=8, lw=2, color=color,
-                label=f"{library}: {num_iters} EM iterations")
-        if library == "dynamax":
+                label=f"{series}: {num_iters} EM iterations")
+        if series != "ssm":
             ax.plot(T, compile_s, marker="o", ms=8, lw=1.5, ls="--", color=color, mfc="white", mew=1.8,
-                    label=f"{library}: compile")
+                    label=f"{series}: compile")
         ax.plot(T, [r["init_s"] for r in sel], marker="^", ms=8, lw=1.5, ls=":", color=color,
-                label=f"{library}: initialization")
-        total_ax.plot(T, totals[library], marker="o", ms=8, lw=2, color=color, label=f"{library}: {TOTAL[library]}")
-    for t, ssm_s, dynamax_s in zip(T, totals["ssm"], totals["dynamax"]):
-        total_ax.annotate(f"{ssm_s / dynamax_s:.1f}×", (t, dynamax_s), xytext=(11, -3), textcoords="offset points",
-                          ha="left", va="center", fontsize=9, color="#52514e")
+                label=f"{series}: initialization")
+        total_ax.plot(T, totals[series], marker="o", ms=8, lw=2, color=color, label=f"{series}: {TOTAL[series]}")
+    for series in SERIES:
+        if series != "ssm":                                 # ssm's time over this series' time, in its color
+            for t, ssm_s, series_s in zip(T, totals["ssm"], totals[series]):
+                total_ax.annotate(f"{ssm_s / series_s:.1f}×", (t, series_s), xytext=(11, -3), fontsize=9,
+                                  textcoords="offset points", ha="left", va="center",
+                                  color="#52514e" if len(SERIES) == 2 else SERIES[series])
     for a in (ax, total_ax):
         a.set_xscale("log")
         a.set_yscale("log")
@@ -77,15 +97,15 @@ for ax, total_ax, (dataset, title) in zip(axes, total_axes, DATASETS.items()):
         a.grid(True, which="minor", color="#f0efec", lw=0.4)
         a.set_axisbelow(True)
         a.spines[["top", "right"]].set_visible(False)
-axes[0].set_ylabel("seconds (wall clock, CPU)")
-total_axes[0].set_ylabel("seconds (wall clock, CPU)")
+axes[0].set_ylabel("seconds (wall clock)")
+total_axes[0].set_ylabel("seconds (wall clock)")
 fig.legend(*axes[1].get_legend_handles_labels(), loc="lower center", ncol=3, fontsize=8.5, frameon=False,
            bbox_to_anchor=(0.5, -0.02))
 total_axes[0].legend(loc="upper left", fontsize=9, frameon=False)
 fig.suptitle(f"SLDS Laplace EM: dynamax vs ssm, {num_iters} iterations from each library's PCA+ARHMM initialization\n"
-             f"(dynamax float32, ssm float64; single run; Apple M1 Pro, 10 cores)", fontsize=10)
+             f"(dynamax float32, ssm float64; single run; CPU: Apple M1 Pro, 10 cores{GPU})", fontsize=10)
 total_fig.suptitle(f"Total time to fit: PCA+ARHMM initialization and {num_iters} Laplace EM iterations\n"
-                   f"(dynamax float32, ssm float64; single run; Apple M1 Pro, 10 cores; "
+                   f"(dynamax float32, ssm float64; single run; CPU: Apple M1 Pro, 10 cores{GPU}; "
                    f"labels = ssm time / dynamax time)", fontsize=10)
 save(fig, "speed.png", (0, 0.14, 1, 0.94))
 save(total_fig, "speed_total.png", (0, 0, 1, 0.93))
@@ -131,5 +151,5 @@ handles += [Line2D([], [], marker="o", ms=11, ls="none", color="#52514e", mfc="n
                    label="hollow: control (random parameters, no learning)")]
 fig.legend(handles=handles, loc="lower center", ncol=len(handles), fontsize=9, frameon=False, bbox_to_anchor=(0.5, 0.0))
 fig.suptitle(f"Recovery of the true states and parameters after PCA+ARHMM initialization and {num_iters} Laplace EM "
-             f"iterations (single run per point)", fontsize=10)
+             f"iterations (CPU fits; single run per point)", fontsize=10)
 save(fig, "recovery.png", (0, 0.07, 1, 0.96))

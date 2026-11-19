@@ -1,9 +1,12 @@
-"""Sample the two notebook models for a given number of timesteps, with lindermanlab/ssm.
+"""Sample the benchmark's datasets from the two notebook models, with lindermanlab/ssm.
 
-Usage: <python with lindermanlab/ssm installed> make_data.py <slds|rslds> <num_timesteps>
-Writes scratch_data/<name>_T<num_timesteps>.npz, keyed as ssm's saved outputs for the recovery test: recovery/<name>/y
-(emissions, (num_sequences, sequence length, N) float64), z and x (the true states and latents, the sequences joined
-end to end), and true/<letter> (the true parameters, named by the letters of dynamax's model docstrings).
+Usage: <python with lindermanlab/ssm installed> make_data.py
+Each model has its own sizes (SIZES): the SLDS from the notebook's 1000 steps up to 1M, the NASCAR rSLDS from the
+notebook's 10000 steps up to 1M. Sizes above the notebook's are batches of independent sequences of the notebook's
+length. Writes scratch_data/<name>_T<num_timesteps>.npz, keyed as ssm's saved outputs for the recovery test:
+recovery/<name>/y (emissions, (num_sequences, sequence length, N) float64), z and x (the true states and latents,
+the sequences joined end to end), and true/<letter> (the true parameters, named by the letters of dynamax's model
+docstrings).
 The models are those of ssm's notebooks 3-Switching-Linear-Dynamical-System.ipynb and 4-Recurrent-SLDS.ipynb (which
 docs/notebooks/slds/{slds,rslds}.ipynb port), built by dynamax/slds/fixtures/export_ssm_fixtures.py with the
 notebooks' own code and seeds and sampled by ssm, so the benchmark data do not depend on dynamax. The first sequence
@@ -26,6 +29,7 @@ def path(name, num_timesteps):
 # this: a single long NASCAR sequence drifts away from the track (max |x| about 7 at T=10k, the notebook's length,
 # far more at 100k and 1M). The SLDS follows the same rule.
 SEQUENCE_LENGTH = {"slds": 1000, "rslds": 10000}
+SIZES = {"slds": [1000, 10000, 100000, 1000000], "rslds": [10000, 100000, 1000000]}
 
 
 def sample(model, name, num_timesteps):
@@ -41,12 +45,13 @@ def sample(model, name, num_timesteps):
 if __name__ == "__main__":
     sys.path.insert(0, os.path.join(HERE, "..", "..", "dynamax", "slds", "fixtures"))
     from export_ssm_fixtures import NOTEBOOKS, natural_params
-    name, num_timesteps = sys.argv[1], int(sys.argv[2])
-    model = NOTEBOOKS[name][0]()[0]
-    z, x, y = sample(model, name, num_timesteps)
-    out = {"y": np.asarray(y, dtype=np.float64), "z": np.asarray(z), "x": np.asarray(x, dtype=np.float64),
-           **{f"true/{k}": np.asarray(v) for k, v in natural_params(model).items()}}
-    os.makedirs(os.path.dirname(path(name, num_timesteps)), exist_ok=True)
-    np.savez(path(name, num_timesteps), **{f"recovery/{name}/{k}": v for k, v in out.items()})
-    print(path(name, num_timesteps), y.shape, "finite:", bool(np.isfinite(y).all()),
-          "max|x|:", float(np.abs(x).max()), "states:", np.bincount(np.asarray(z)).tolist())
+    for name, sizes in SIZES.items():
+        for num_timesteps in sizes:
+            model = NOTEBOOKS[name][0]()[0]
+            z, x, y = sample(model, name, num_timesteps)
+            out = {"y": np.asarray(y, dtype=np.float64), "z": np.asarray(z), "x": np.asarray(x, dtype=np.float64),
+                   **{f"true/{k}": np.asarray(v) for k, v in natural_params(model).items()}}
+            os.makedirs(os.path.dirname(path(name, num_timesteps)), exist_ok=True)
+            np.savez(path(name, num_timesteps), **{f"recovery/{name}/{k}": v for k, v in out.items()})
+            print(path(name, num_timesteps), y.shape, "finite:", bool(np.isfinite(y).all()),
+                  "max|x|:", float(np.abs(x).max()), "states:", np.bincount(np.asarray(z)).tolist())
