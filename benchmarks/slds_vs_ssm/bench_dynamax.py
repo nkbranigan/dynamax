@@ -1,4 +1,4 @@
-"""Time dynamax's PCA+ARHMM initialization and Laplace EM on a saved dataset, in float64.
+"""Time dynamax's PCA+ARHMM initialization and Laplace EM on a saved dataset, in float32 (JAX's default).
 
 Usage: python bench_dynamax.py <slds|rslds> <num_timesteps> <num_iters>
 Prints one JSON line. initialize and fit_em are wrapped in an outer jax.jit and compiled ahead of time
@@ -17,8 +17,7 @@ import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
-jax.config.update("jax_enable_x64", True)
-from dynamax.slds.ssm_recovery_test import MODELS, natural_params, recovery  # noqa: E402
+from dynamax.slds.ssm_recovery_test import MODELS, natural_params, recovery
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from make_data import path  # noqa: E402
@@ -35,7 +34,7 @@ if __name__ == "__main__":
     saved = np.load(path(name, num_timesteps))
     emissions = jnp.asarray(saved[f"recovery/{name}/y"])
     model = MODELS[name]()
-    key = jr.PRNGKey(0)
+    key = jr.PRNGKey(4)   # the seed of the notebooks and of the recovery test
 
     # The static arguments are baked into the executable and are not passed at call time.
     init = jax.jit(model.initialize, static_argnames=("method",))

@@ -82,12 +82,13 @@ total_axes[0].set_ylabel("seconds (wall clock, CPU)")
 fig.legend(*axes[1].get_legend_handles_labels(), loc="lower center", ncol=3, fontsize=8.5, frameon=False,
            bbox_to_anchor=(0.5, -0.02))
 total_axes[0].legend(loc="upper left", fontsize=9, frameon=False)
-fig.suptitle(f"SLDS Laplace EM: dynamax vs ssm, {num_iters} iterations from each library's PCA+ARHMM "
-             f"initialization (float64; single run; Apple M1 Pro, 10 cores)", fontsize=10)
-total_fig.suptitle(f"Total time to fit: PCA+ARHMM initialization and {num_iters} Laplace EM iterations "
-                   f"(float64; single run; Apple M1 Pro, 10 cores; labels = ssm time / dynamax time)", fontsize=10)
-save(fig, "speed.png", (0, 0.14, 1, 0.96))
-save(total_fig, "speed_total.png", (0, 0, 1, 0.95))
+fig.suptitle(f"SLDS Laplace EM: dynamax vs ssm, {num_iters} iterations from each library's PCA+ARHMM initialization\n"
+             f"(dynamax float32, ssm float64; single run; Apple M1 Pro, 10 cores)", fontsize=10)
+total_fig.suptitle(f"Total time to fit: PCA+ARHMM initialization and {num_iters} Laplace EM iterations\n"
+                   f"(dynamax float32, ssm float64; single run; Apple M1 Pro, 10 cores; "
+                   f"labels = ssm time / dynamax time)", fontsize=10)
+save(fig, "speed.png", (0, 0.14, 1, 0.94))
+save(total_fig, "speed_total.png", (0, 0, 1, 0.93))
 
 # ---- recovery.png
 fig, axes = plt.subplots(2, 1, figsize=(11, 7.5))

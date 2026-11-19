@@ -1,4 +1,5 @@
-"""Run the benchmark: both notebook models x timesteps x (ssm, dynamax), in float64.
+"""Run the benchmark: both notebook models x timesteps x (ssm, dynamax), each at its default precision (ssm in
+float64, dynamax in float32).
 
 Usage: python run.py
 Each dataset has its own grid (SIZES): the SLDS from the notebook's 1000 steps up to 1M, the NASCAR rSLDS from the
