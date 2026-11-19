@@ -85,8 +85,13 @@ for ax, total_ax, (dataset, title) in zip(axes, total_axes, DATASETS.items()):
     for series in SERIES:
         if series != "ssm":                                 # ssm's time over this series' time, in its color
             for t, ssm_s, series_s in zip(T, totals["ssm"], totals[series]):
-                total_ax.annotate(f"{ssm_s / series_s:.1f}×", (t, series_s), xytext=(11, -3), fontsize=9,
-                                  textcoords="offset points", ha="left", va="center",
+                ratio = ssm_s / series_s                    # below 1 (dynamax slower), one decimal is too coarse
+                # beside a CPU point; above or below a GPU point (its line is flat), on the side away from ssm's
+                place = dict(xytext=(11, -3), ha="left", va="center") if "GPU" not in series else \
+                    dict(xytext=(0, -9), ha="center", va="top") if ratio >= 1 else \
+                    dict(xytext=(0, 9), ha="center", va="bottom")
+                total_ax.annotate(f"{ratio:.1f}×" if ratio >= 1 else f"{ratio:.2f}×", (t, series_s), fontsize=9,
+                                  textcoords="offset points", **place,
                                   color="#52514e" if len(SERIES) == 2 else SERIES[series])
     for a in (ax, total_ax):
         a.set_xscale("log")
