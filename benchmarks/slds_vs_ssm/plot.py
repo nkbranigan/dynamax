@@ -1,16 +1,17 @@
-"""Plot the results as three figures per CPU, one panel per dataset. Color = library, and the device for dynamax.
+"""Plot the results as three figures per CPU.
 
 For each CPU in CPUS, reads that CPU's results files, cpu_<cpu>_ssm_<model>.jsonl and
 cpu_<cpu>_dynamax_<model>.jsonl, and each GPU's, gpu_<gpu>_dynamax_<model>.jsonl (the speed figures draw dynamax on
 each GPU as a further series). A series is drawn at the sizes its files have, so one that stops early, or is not
 there, only shortens or drops its line.
 
-speed_<cpu>.png: seconds vs timesteps, log-log. Filled circles + solid line = 100 EM iterations (execution only);
-hollow circles + dashed line = compile (dynamax only); triangles + dotted line = initialization (PCA + 50 ARHMM EM
-iterations).
-speed_total_<cpu>.png: total fit time vs timesteps: ssm = initialization + EM iterations; dynamax = initialization
-(including its compile) + EM iterations (including their compile). The labels are ssm's time on that CPU over the
-series' time, at the sizes ssm has, stacked below the points with the smallest ratio on top.
+speed_<cpu>.png: seconds vs timesteps, log-log, with a row of panels per dataset and a panel per series. Each panel
+has a line for the 100 EM iterations (execution only), one for compile (dynamax only), and one for initialization
+(PCA + 50 ARHMM EM iterations). Color = part of the fit.
+speed_total_<cpu>.png: total fit time vs timesteps, with a panel per dataset and a line per series: ssm =
+initialization + EM iterations; dynamax = initialization (including its compile) + EM iterations (including their
+compile). Color = series; circles are CPU runs and squares are GPU runs. The labels are ssm's time on that CPU over
+the series' time, at the sizes ssm has, stacked below the points with the smallest ratio on top.
 recovery_<cpu>.png (CPU fits only): recovery as scored by dynamax/slds/ssm_recovery_test.py: discrete state recovery,
 continuous state recovery, then the parameter recovery scores, at the sizes both libraries have. Marker = number of
 timesteps. Within a column each number of timesteps has one (ssm, dynamax) pair, joined by a line. The dynamics noise
@@ -36,6 +37,7 @@ DATASETS = {"slds": "SLDS of ssm's notebook 3", "rslds": "rSLDS of ssm's noteboo
 SKIP = {"rslds": {"Q"}}
 MARKERS = dict(zip(sorted({T for sizes in SIZES.values() for T in sizes}), "os^Dv"))   # marker = number of timesteps
 BATCH_NOTE = {d: f"above {n:,}: independent sequences of {n:,}" for d, n in SEQUENCE_LENGTH.items()}
+PART_COLORS = ["#3a3a3a", "#b8860b", "#2a8f6f"]           # the detailed figure's EM, compile, and initialization
 
 
 def load(prefix):
@@ -56,31 +58,70 @@ def save(fig, name, rect):
     print(os.path.join(HERE, name))
 
 
-def speed_figures(cpu, cpu_label, series_rows, num_iters):
-    """speed_<cpu>.png and speed_total_<cpu>.png: both libraries on this CPU, and dynamax on each GPU."""
-    fig, axes = plt.subplots(1, 2, figsize=(11, 5.0), sharey=True)
-    total_fig, total_axes = plt.subplots(1, 2, figsize=(11, 5.7), sharey=True)   # tall, so the stacked labels fit
-    names = {"ssm": f"ssm (CPU: {cpu_label})", "Dynamax": f"Dynamax (CPU: {cpu_label})",   # the total figure's legend
-             **{series: f"Dynamax (GPU: {gpu_label})" for series, gpu_label in zip(GPU_SERIES, GPUS.values())}}
+def log_axes(ax):
+    """The look both speed figures share: log scales, the major grid only, and no top or right border."""
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.grid(True, which="major", color="#e4e2dc", lw=0.6)
+    ax.set_axisbelow(True)
+    ax.spines[["top", "right"]].set_visible(False)
+
+
+def time_marks(axes):
+    """Faint lines at familiar lengths of time, named at the right of the last panel."""
+    low, high = axes[0].get_ylim()
+    marks = {seconds: name for seconds, name in {60: "1 minute", 3600: "1 hour", 86400: "1 day"}.items()
+             if low < seconds < high}
+    for ax in axes:
+        for seconds in marks:
+            ax.axhline(seconds, color="#b0aea8", lw=0.8, ls=":", zorder=0)
+    right = axes[-1].secondary_yaxis("right")
+    right.set_yticks(list(marks), list(marks.values()), fontsize=8, color="#7a7873")
+    right.minorticks_off()
+    right.tick_params(length=0)
+    right.spines["right"].set_visible(False)
+
+
+def detail_figure(cpu, names, series_rows, num_iters):
+    """speed_<cpu>.png: a row of panels per dataset and a panel per run, with a line for each part of the fit."""
+    fig, axes = plt.subplots(len(DATASETS), len(series_rows), figsize=(12, 6.4), sharex="row", sharey=True,
+                             squeeze=False)
+    for row, (dataset, title) in zip(axes, DATASETS.items()):
+        for ax, (series, rows) in zip(row, series_rows.items()):
+            sel = select(rows, dataset)
+            compiled = [r for r in sel.values() if "fit_compile_s" in r]               # none of ssm's rows
+            parts = {f"{num_iters} EM iterations": [r["fit_s"] for r in sel.values()],
+                     "compile": [r["init_compile_s"] + r["fit_compile_s"] for r in compiled],
+                     "initialization": [r["init_s"] for r in sel.values()]}
+            for (part, seconds), color in zip(parts.items(), PART_COLORS):
+                if seconds:
+                    ax.plot(list(sel), seconds, marker="o", ms=6, lw=2, color=color, label=part)
+            log_axes(ax)
+        row[0].set_ylabel(f"{title}\ntime (seconds)", fontsize=9)
+    for ax, series in zip(axes[0], series_rows):
+        ax.set_title(names[series], fontsize=10)
+    axes[-1, 0].set_xlabel("data size")
+    for row in axes:
+        time_marks(row)
+    legend = max((ax.get_legend_handles_labels() for ax in axes.flat), key=lambda entries: len(entries[0]))
+    fig.legend(*legend, loc="lower center", ncol=len(PART_COLORS), fontsize=9, frameon=False,
+               bbox_to_anchor=(0.5, -0.01))
+    save(fig, f"speed_{cpu}.png", (0, 0.04, 1, 1))
+
+
+def total_figure(cpu, names, series_rows):
+    """speed_total_<cpu>.png: a panel per dataset and a line per run, labelled with its speedup over ssm."""
+    fig, axes = plt.subplots(1, 2, figsize=(11, 5.7), sharey=True)                # tall, so the stacked labels fit
     lowest = float("inf")                                   # the smallest total time in either panel
-    for ax, total_ax, (dataset, title) in zip(axes, total_axes, DATASETS.items()):
+    for ax, (dataset, title) in zip(axes, DATASETS.items()):
         totals = {}                                         # series: {number of timesteps: total seconds}
         for series, rows in series_rows.items():
-            sel, color = select(rows, dataset), COLORS[series]
-            T = list(sel)
-            compile_s = [r.get("init_compile_s", 0) + r.get("fit_compile_s", 0) for r in sel.values()]   # 0 for ssm
-            totals[series] = {t: r["init_s"] + r["fit_s"] + c for (t, r), c in zip(sel.items(), compile_s)}
-            ax.plot(T, [r["fit_s"] for r in sel.values()], marker="o", ms=8, lw=2, color=color,
-                    label=f"{series}: {num_iters} EM iterations")
-            if series == "ssm":
-                ax.plot([], [], ls="none", label=" ")       # an empty legend entry, so each series fills one column
-            else:
-                ax.plot(T, compile_s, marker="o", ms=8, lw=1.5, ls="--", color=color, mfc="white", mew=1.8,
-                        label=f"{series}: compile")
-            ax.plot(T, [r["init_s"] for r in sel.values()], marker="^", ms=8, lw=1.5, ls=":", color=color,
-                    label=f"{series}: initialization")
-            marker = dict(marker="s", ms=7) if series in GPU_SERIES else dict(marker="o", ms=8)   # square = GPU
-            total_ax.plot(T, list(totals[series].values()), **marker, lw=2, color=color, label=names[series])
+            sel = select(rows, dataset)
+            shape, size = ("s", 7) if series in GPU_SERIES else ("o", 8)                # square = GPU, circle = CPU
+            totals[series] = {t: r["init_s"] + r["fit_s"] + r.get("init_compile_s", 0) + r.get("fit_compile_s", 0)
+                              for t, r in sel.items()}      # ssm has no compile
+            ax.plot(list(sel), list(totals[series].values()), marker=shape, ms=size, lw=2, color=COLORS[series],
+                    label=names[series])
         for t, ssm_s in totals.get("ssm", {}).items():      # labels: ssm's time over each series' time, in its color
             points = sorted(((seconds[t], series) for series, seconds in totals.items()
                              if series != "ssm" and t in seconds), reverse=True)       # this size's points, top first
@@ -94,44 +135,20 @@ def speed_figures(cpu, cpu_label, series_rows, num_iters):
                 for k, (seconds, series) in enumerate(stack):
                     ratio = ssm_s / seconds                 # fewer decimals for the larger ratios
                     text = f"{ratio:.0f}×" if ratio >= 100 else f"{ratio:.1f}×" if ratio >= 1 else f"{ratio:.2f}×"
-                    total_ax.annotate(text, (t, stack[-1][0]), xytext=(0, -15 - 11 * k), textcoords="offset points",
-                                      ha="center", va="top", fontsize=9, fontweight="bold",
-                                      color="#52514e" if len(totals) == 2 else COLORS[series])
+                    ax.annotate(text, (t, stack[-1][0]), xytext=(0, -15 - 11 * k), textcoords="offset points",
+                                ha="center", va="top", fontsize=9, fontweight="bold",
+                                color="#52514e" if len(totals) == 2 else COLORS[series])
         lowest = min([lowest] + [min(seconds.values()) for seconds in totals.values() if seconds])
-        for a in (ax, total_ax):
-            a.set_xscale("log")
-            a.set_yscale("log")
-            a.set_title(title, fontsize=11)
-            a.grid(True, which="major", color="#e4e2dc", lw=0.6)
-            a.set_axisbelow(True)
-            a.spines[["top", "right"]].set_visible(False)
-        ax.grid(True, which="minor", color="#f0efec", lw=0.4)
-        ax.set_xlabel(f"timesteps T ({BATCH_NOTE[dataset]})")
-        total_ax.set_xlabel("data size")
-        total_ax.margins(x=0.08)                            # room for the labels below the first and last points
-    axes[0].set_ylabel("seconds (wall clock)")
-    total_axes[0].set_ylabel("total time to fit (seconds)")
-    total_axes[0].set_ylim(bottom=lowest / 3)               # room below the lowest points for their labels
-    low, high = total_axes[0].get_ylim()                    # faint lines at familiar times, named at the right
-    marks = {seconds: name for seconds, name in {60: "1 minute", 3600: "1 hour", 86400: "1 day"}.items()
-             if low < seconds < high}
-    for a in total_axes:
-        for seconds in marks:
-            a.axhline(seconds, color="#b0aea8", lw=0.8, ls=":", zorder=0)
-    right = total_axes[1].secondary_yaxis("right")
-    right.set_yticks(list(marks), list(marks.values()), fontsize=8, color="#7a7873")
-    right.minorticks_off()
-    right.tick_params(length=0)
-    right.spines["right"].set_visible(False)
-    fig.legend(*axes[1].get_legend_handles_labels(), loc="lower center", ncol=len(series_rows), fontsize=8,
-               frameon=False, bbox_to_anchor=(0.5, -0.02))
-    total_fig.legend(*total_axes[1].get_legend_handles_labels(), loc="lower center", ncol=len(series_rows),
-                     fontsize=9, frameon=False, bbox_to_anchor=(0.5, -0.01))
-    fig.suptitle(f"SLDS Laplace EM: Dynamax vs ssm, {num_iters} iterations from each library's PCA+ARHMM "
-                 f"initialization\n(Dynamax float32, ssm float64; single run; CPU: {cpu_label}, 8 cores)",
-                 fontsize=10)
-    save(fig, f"speed_{cpu}.png", (0, 0.15, 1, 0.94))
-    save(total_fig, f"speed_total_{cpu}.png", (0, 0.05, 1, 1))
+        log_axes(ax)
+        ax.set_title(title, fontsize=11)
+        ax.set_xlabel("data size")
+        ax.margins(x=0.08)                                  # room for the labels below the first and last points
+    axes[0].set_ylabel("total time to fit (seconds)")
+    axes[0].set_ylim(bottom=lowest / 3)                     # room below the lowest points for their labels
+    time_marks(axes)
+    fig.legend(*axes[1].get_legend_handles_labels(), loc="lower center", ncol=len(series_rows), fontsize=9,
+               frameon=False, bbox_to_anchor=(0.5, -0.01))
+    save(fig, f"speed_total_{cpu}.png", (0, 0.05, 1, 1))
 
 
 def recovery_figure(cpu, cpu_label, series_rows, num_iters):
@@ -188,6 +205,9 @@ for cpu, cpu_label in CPUS.items():
         continue
     num_iters = {r["num_iters"] for rows in series_rows.values() for r in rows}
     assert len(num_iters) == 1, "the files differ in num_iters"
-    speed_figures(cpu, cpu_label, series_rows, *num_iters)
+    names = {"ssm": f"ssm (CPU: {cpu_label})", "Dynamax": f"Dynamax (CPU: {cpu_label})",       # in titles and legends
+             **{series: f"Dynamax (GPU: {gpu_label})" for series, gpu_label in zip(GPU_SERIES, GPUS.values())}}
+    detail_figure(cpu, names, series_rows, *num_iters)
+    total_figure(cpu, names, series_rows)
     if {"ssm", "Dynamax"} <= set(series_rows):
         recovery_figure(cpu, cpu_label, series_rows, *num_iters)
