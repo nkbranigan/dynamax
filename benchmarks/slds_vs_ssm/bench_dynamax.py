@@ -1,13 +1,15 @@
 """Time dynamax's PCA+ARHMM initialization and Laplace EM on the benchmark's datasets, in float32 (JAX's default).
 
-Usage: python bench_dynamax.py [--device cpu|gpu] [--model slds|rslds]
+Usage: python bench_dynamax.py [--device cpu|gpu] [--model slds|rslds] [--name NAME]
 Fits every dataset of make_data.py, smallest first, on the CPU (the default) or on the GPU, and writes one results
 file per model, such as cpu_dynamax_slds.jsonl or gpu_dynamax_rslds.jsonl, one JSON line per dataset. With --model
-only that model's datasets are fitted, so the two models can run at the same time. initialize and fit_em are wrapped
-in an outer jax.jit and compiled ahead of time (jit(...).lower(...).compile(): tracing, lowering and XLA compilation,
-timed as *_compile_s); the executable is then run once (timed as *_s). Outside the timed region each fit is scored by
-the recovery test's own function. A short fit runs before the timed ones, because on a cluster the first dynamax fit
-can pay a one-time setup price. JAX's caches are cleared before each timed fit, so each one compiles in full.
+only that model's datasets are fitted, so the two models can run at the same time. With --name the machine's name
+goes into the file names, such as gpu_h200_dynamax_slds.jsonl, so several machines' results can sit side by side.
+initialize and fit_em are wrapped in an outer jax.jit and compiled ahead of time (jit(...).lower(...).compile():
+tracing, lowering and XLA compilation, timed as *_compile_s); the executable is then run once (timed as *_s). Outside
+the timed region each fit is scored by the recovery test's own function. A short fit runs before the timed ones,
+because on a cluster the first dynamax fit can pay a one-time setup price. JAX's caches are cleared before each timed
+fit, so each one compiles in full.
 """
 import argparse
 import json
@@ -18,8 +20,10 @@ import time
 parser = argparse.ArgumentParser()
 parser.add_argument("--device", choices=["cpu", "gpu"], default="cpu")
 parser.add_argument("--model", choices=["slds", "rslds"], help="fit only this model's datasets (default: both)")
+parser.add_argument("--name", help="the machine's name, to go into the results files' names (default: none)")
 ARGS = parser.parse_args()
 DEVICE = ARGS.device
+PREFIX = f"{DEVICE}_{ARGS.name}" if ARGS.name else DEVICE   # how the results files' names start
 os.environ["JAX_PLATFORMS"] = {"cpu": "cpu", "gpu": "cuda"}[DEVICE]   # read when jax is imported
 
 import jax  # noqa: E402
@@ -37,7 +41,7 @@ NUM_ITERS = 100                                           # the same as in bench
 
 
 def results(name):
-    return os.path.join(HERE, f"{DEVICE}_dynamax_{name}.jsonl")
+    return os.path.join(HERE, f"{PREFIX}_dynamax_{name}.jsonl")
 
 
 def timed(fn):

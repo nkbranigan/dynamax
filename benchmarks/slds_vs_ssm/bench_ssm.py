@@ -1,11 +1,12 @@
 """Time lindermanlab/ssm's PCA+ARHMM initialization and Laplace EM on the benchmark's datasets.
 
-Usage: <python with lindermanlab/ssm installed> bench_ssm.py [--model slds|rslds]
+Usage: <python with lindermanlab/ssm installed> bench_ssm.py [--model slds|rslds] [--name NAME]
 Fits every dataset of make_data.py, smallest first, and writes one results file per model, cpu_ssm_slds.jsonl and
 cpu_ssm_rslds.jsonl, one JSON line per dataset. With --model only that model's datasets are fitted, so the two models
-can run at the same time. ssm runs on the CPU in float64. A short fit before the timed ones compiles ssm's numba
-kernels (about 12 s in a new environment), so no timed fit pays for it. Outside the timed region each fit is scored by
-the recovery test's own function.
+can run at the same time. With --name the machine's name goes into the file names, such as
+cpu_epyc_7502_ssm_slds.jsonl, so several machines' results can sit side by side. ssm runs on the CPU in float64. A
+short fit before the timed ones compiles ssm's numba kernels (about 12 s in a new environment), so no timed fit pays
+for it. Outside the timed region each fit is scored by the recovery test's own function.
 """
 import argparse
 import json
@@ -28,8 +29,9 @@ from make_data import SIZES, path  # noqa: E402
 NUM_ITERS = 100                                           # the same as in bench_dynamax.py
 
 
-def results(name):
-    return os.path.join(HERE, f"cpu_ssm_{name}.jsonl")
+def results(name, machine=None):
+    prefix = f"cpu_{machine}" if machine else "cpu"       # how the results file's name starts
+    return os.path.join(HERE, f"{prefix}_ssm_{name}.jsonl")
 
 
 def fit(fit_model, datas, num_iters):
@@ -64,17 +66,18 @@ def bench(name, num_timesteps, num_iters=NUM_ITERS):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", choices=["slds", "rslds"], help="fit only this model's datasets (default: both)")
-    model = parser.parse_args().model
-    names = [model] if model else list(SIZES)
+    parser.add_argument("--name", help="the machine's name, to go into the results files' names (default: none)")
+    args = parser.parse_args()
+    names = [args.model] if args.model else list(SIZES)
     grid = sorted((T, name) for name in names for T in SIZES[name])   # cheap fits first
     num_timesteps, name = grid[0]
     warm_up_data = list(np.load(path(name, num_timesteps))[f"recovery/{name}/y"])
     fit(NOTEBOOKS[name][0]()[1], warm_up_data, 2)                     # compiles numba's kernels
     for name in names:
-        open(results(name), "w").close()
+        open(results(name, args.name), "w").close()
     for num_timesteps, name in grid:
         row = bench(name, num_timesteps)
-        with open(results(name), "a") as f:
+        with open(results(name, args.name), "a") as f:
             f.write(json.dumps(row) + "\n")
         print(f"ssm {name:6s} T={num_timesteps:<8d} init {row['init_s']:7.2f}s  fit {row['fit_s']:8.2f}s  "
               f"discrete state recovery {row['recovery']['discrete state recovery']:.3f}", flush=True)
