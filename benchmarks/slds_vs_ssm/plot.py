@@ -1,4 +1,4 @@
-"""Plot the results as three figures per CPU.
+"""Plot the results as two speed figures per CPU and two recovery figures.
 
 For each CPU in CPUS, reads that CPU's results files, cpu_<cpu>_ssm_<model>.jsonl and
 cpu_<cpu>_dynamax_<model>.jsonl, and each GPU's, gpu_<gpu>_dynamax_<model>.jsonl (the speed figures draw dynamax on
@@ -12,10 +12,13 @@ speed_total_<cpu>.png: total fit time vs timesteps, with a panel per dataset and
 initialization + EM iterations; dynamax = initialization (including its compile) + EM iterations (including their
 compile). Color = series; circles are CPU runs and squares are GPU runs. The labels are ssm's time on that CPU over
 the series' time, at the sizes ssm has, stacked below the points with the smallest ratio on top.
-recovery_<cpu>.png (CPU fits only): recovery as scored by dynamax/slds/ssm_recovery_test.py: discrete state recovery,
-continuous state recovery, then the parameter recovery scores, at the sizes both libraries have. Marker = number of
-timesteps. Within a column each number of timesteps has one (ssm, dynamax) pair, joined by a line. The dynamics noise
-covariance Q is left out of the rSLDS panel.
+The recovery figures are drawn for one CPU only (RECOVERY_CPU): the scores are essentially the same on both.
+recovery_summary_<cpu>.png: the mean of a fit's recovery scores (the ones recovery_<cpu>.png shows) vs timesteps,
+with a panel per dataset and a line per series, drawn as in speed_total_<cpu>.png.
+recovery_<cpu>.png: recovery as scored by dynamax/slds/ssm_recovery_test.py, with a row of panels per dataset and a
+panel per score: discrete state recovery, continuous state recovery, then the parameter recovery scores. Each panel
+is recovery_summary_<cpu>.png's, in small, for that one score. The dynamics noise covariance Q is left out of the
+rSLDS row.
 Usage: python plot.py
 """
 import json
@@ -23,20 +26,19 @@ import os
 import sys
 
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from make_data import SEQUENCE_LENGTH, SIZES  # noqa: E402
+from make_data import SEQUENCE_LENGTH  # noqa: E402
 
 CPUS = {"epyc_7502": "AMD EPYC 7502", "epyc_8224p": "AMD EPYC 8224P"}     # --name of a run: its label; 8 cores each
+DPI = 150                                                 # of the pictures
+RECOVERY_CPU = "epyc_8224p"                               # the recovery figures are drawn for this CPU only
 GPUS = {"rtx_2080ti": "RTX 2080 Ti", "h200": "H200"}
 GPU_SERIES = [f"Dynamax on {label}" for label in GPUS.values()]
 COLORS = dict(zip(["ssm", "Dynamax"] + GPU_SERIES, ["#eb6834", "#1c5cab", "#6fb1e6", "#a06cd5"]))
 DATASETS = {"slds": "SLDS of ssm's notebook 3", "rslds": "rSLDS of ssm's notebook 4 (NASCAR)"}
 SKIP = {"rslds": {"Q"}}
-MARKERS = dict(zip(sorted({T for sizes in SIZES.values() for T in sizes}), "os^Dv"))   # marker = number of timesteps
-BATCH_NOTE = {d: f"above {n:,}: independent sequences of {n:,}" for d, n in SEQUENCE_LENGTH.items()}
 PART_COLORS = ["#3a3a3a", "#b8860b", "#2a8f6f"]           # the detailed figure's EM, compile, and initialization
 
 
@@ -51,17 +53,22 @@ def select(rows, dataset):
     return {r["num_timesteps"]: r for r in sorted(rows, key=lambda r: r["num_timesteps"]) if r["dataset"] == dataset}
 
 
-def save(fig, name, rect):
-    fig.tight_layout(rect=rect)
-    fig.savefig(os.path.join(HERE, name), dpi=150)
+def save(fig, name, rect, **padding):
+    fig.tight_layout(rect=rect, **padding)
+    fig.savefig(os.path.join(HERE, name), dpi=DPI)
     plt.close(fig)
     print(os.path.join(HERE, name))
 
 
-def log_axes(ax):
-    """The look both speed figures share: log scales, the major grid only, and no top or right border."""
+def marker(series):
+    """The marker of a series where each series is one line: a square for a GPU run, a circle for a CPU run."""
+    return dict(marker="s", ms=7) if series in GPU_SERIES else dict(marker="o", ms=8)
+
+
+def log_axes(ax, yscale="log"):
+    """The look the figures over data size share: a log x axis, the major grid only, and no top or right border."""
     ax.set_xscale("log")
-    ax.set_yscale("log")
+    ax.set_yscale(yscale)
     ax.grid(True, which="major", color="#e4e2dc", lw=0.6)
     ax.set_axisbelow(True)
     ax.spines[["top", "right"]].set_visible(False)
@@ -117,10 +124,9 @@ def total_figure(cpu, names, series_rows):
         totals = {}                                         # series: {number of timesteps: total seconds}
         for series, rows in series_rows.items():
             sel = select(rows, dataset)
-            shape, size = ("s", 7) if series in GPU_SERIES else ("o", 8)                # square = GPU, circle = CPU
             totals[series] = {t: r["init_s"] + r["fit_s"] + r.get("init_compile_s", 0) + r.get("fit_compile_s", 0)
                               for t, r in sel.items()}      # ssm has no compile
-            ax.plot(list(sel), list(totals[series].values()), marker=shape, ms=size, lw=2, color=COLORS[series],
+            ax.plot(list(sel), list(totals[series].values()), **marker(series), lw=2, color=COLORS[series],
                     label=names[series])
         for t, ssm_s in totals.get("ssm", {}).items():      # labels: ssm's time over each series' time, in its color
             points = sorted(((seconds[t], series) for series, seconds in totals.items()
@@ -151,50 +157,58 @@ def total_figure(cpu, names, series_rows):
     save(fig, f"speed_total_{cpu}.png", (0, 0.05, 1, 1))
 
 
-def recovery_figure(cpu, cpu_label, series_rows, num_iters):
-    """recovery_<cpu>.png: the recovery scores of both libraries' fits on this CPU."""
-    fig, axes = plt.subplots(2, 1, figsize=(11, 7.5))
-    libraries, drawn = ("ssm", "Dynamax"), set()
+def recovery_summary_figure(cpu, names, series_rows):
+    """recovery_summary_<cpu>.png: a panel per dataset and a line per series, the mean of its recovery scores."""
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), sharey=True)
     for ax, (dataset, title) in zip(axes, DATASETS.items()):
-        sel = {library: select(series_rows[library], dataset) for library in libraries}
-        sizes = [T for T in sel["ssm"] if T in sel["Dynamax"]]              # the sizes both libraries have
-        if not sizes:                                       # one library has no fit of this model: an empty panel
+        for series, rows in series_rows.items():
+            sel = select(rows, dataset)
+            scores = [[score for group, score in r["recovery"].items() if group not in SKIP.get(dataset, ())]
+                      for r in sel.values()]                # the scores recovery_<cpu>.png shows, per size
+            ax.plot(list(sel), [sum(s) / len(s) for s in scores], **marker(series), lw=2, color=COLORS[series],
+                    label=names[series])
+        log_axes(ax, yscale="linear")
+        ax.set_title(title, fontsize=11)
+        ax.set_xlabel("data size")
+    axes[0].set_ylabel("mean recovery score")
+    axes[0].set_ylim(0, 1.05)                               # as in recovery_<cpu>.png
+    fig.legend(*axes[1].get_legend_handles_labels(), loc="lower center", ncol=len(series_rows), fontsize=9,
+               frameon=False, bbox_to_anchor=(0.5, -0.01))
+    save(fig, f"recovery_summary_{cpu}.png", (0, 0.06, 1, 1))
+
+
+def recovery_figure(cpu, names, series_rows):
+    """recovery_<cpu>.png: recovery_summary_<cpu>.png's panels in small, one per recovery score, a row per dataset."""
+    sel = {dataset: {series: select(rows, dataset) for series, rows in series_rows.items()} for dataset in DATASETS}
+    scores = {}                                             # dataset: the scores to draw, in the results files' order
+    for dataset in DATASETS:
+        rows = [r for of_series in sel[dataset].values() for r in of_series.values()]
+        scores[dataset] = [s for s in rows[0]["recovery"] if s not in SKIP.get(dataset, ())] if rows else []
+    fig, axes = plt.subplots(len(DATASETS), max(map(len, scores.values())), figsize=(12, 5.8), sharex="row",
+                             sharey=True, squeeze=False)
+    for row, (dataset, title) in zip(axes, DATASETS.items()):
+        sizes = sorted({T for of_series in sel[dataset].values() for T in of_series})
+        for ax, score in zip(row, scores[dataset]):
+            for series, of_series in sel[dataset].items():
+                style = marker(series)
+                ax.plot(list(of_series), [r["recovery"][score] for r in of_series.values()], marker=style["marker"],
+                        ms=style["ms"] - 3.5, lw=1.5, color=COLORS[series], label=names[series])
+            log_axes(ax, yscale="linear")
+            ax.spines[["left", "bottom"]].set_linewidth(0.2)                # thin, with so many panels
+            ax.set_xticks(sizes)                            # a tick at every data size, named in the first panel only
+            ax.minorticks_off()
+            ax.tick_params(labelbottom=False, width=0.2)
+            ax.set_title(score.replace(" recovery", "").replace("_", " ").replace(" ", "\n", 1), fontsize=9)
+        for ax in row[len(scores[dataset]):]:               # this dataset has fewer scores than the other
             ax.set_axis_off()
-            continue
-        drawn.update(sizes)
-        groups = [k for k in sel["ssm"][sizes[0]]["recovery"] if k not in SKIP.get(dataset, ())]
-        slot = 0.8 / len(sizes)                             # each group holds one (ssm, dynamax) pair per T
-        for i, T in enumerate(sizes):
-            for g, group in enumerate(groups):
-                center = g + (i - (len(sizes) - 1) / 2) * slot
-                xs = {"ssm": center - 0.22 * slot, "Dynamax": center + 0.22 * slot}
-                ax.plot(list(xs.values()), [sel[library][T]["recovery"][group] for library in xs], color="#b0aea8",
-                        lw=1.5, zorder=1)
-                for library in xs:
-                    ax.plot([xs[library]], [sel[library][T]["recovery"][group]], marker=MARKERS[T], ms=7, ls="none",
-                            color=COLORS[library], zorder=3)
-        ax.set_xticks(range(len(groups)),
-                      [k.replace(" recovery", "").replace("_", " ").replace(" ", "\n", 1) for k in groups])
-        ax.set_xlim(-0.5, len(groups) - 0.5)
-        ax.set_ylim(0, 1.05)
-        ax.set_title(f"{title}; T {BATCH_NOTE[dataset]}", fontsize=11)
-        ax.set_ylabel("recovery")
-        ax.grid(True, axis="y", color="#e4e2dc", lw=0.6)
-        for g in range(1, len(groups)):                     # a heavier line after the two state scores
-            ax.axvline(g - 0.5, color="#b0aea8" if g == 2 else "#e4e2dc", lw=1.2 if g == 2 else 0.6)
-        ax.set_axisbelow(True)
-        ax.spines[["top", "right"]].set_visible(False)
-    axes[1].set_xlabel("state recovery, then parameter recovery by group "
-                       "(within a column: T increasing left to right, ssm then Dynamax)")
-    handles = [Line2D([], [], marker="o", ms=7, ls="none", color=COLORS[library], label=library)
-               for library in libraries]
-    handles += [Line2D([], [], marker=MARKERS[T], ms=7, ls="none", color="#52514e", label=f"T = {T:,}")
-                for T in sorted(drawn)]
-    fig.legend(handles=handles, loc="lower center", ncol=len(handles), fontsize=9, frameon=False,
-               bbox_to_anchor=(0.5, 0.0))
-    fig.suptitle(f"Recovery of the true states and parameters after PCA+ARHMM initialization and {num_iters} Laplace "
-                 f"EM iterations\n(single run per point; CPU: {cpu_label}, 8 cores)", fontsize=10)
-    save(fig, f"recovery_{cpu}.png", (0, 0.07, 1, 0.95))
+        row[0].tick_params(labelbottom=True, labelsize=7)
+        plt.setp(row[0].get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+        row[0].set_xlabel("data size", fontsize=9)
+        row[0].set_ylabel(f"{title}\nrecovery score", fontsize=9)
+    axes[0, 0].set_ylim(0, 1.05)                            # as in recovery_summary_<cpu>.png
+    fig.legend(*axes[-1, 0].get_legend_handles_labels(), loc="lower center", ncol=len(series_rows), fontsize=9,
+               frameon=False, bbox_to_anchor=(0.5, -0.01))
+    save(fig, f"recovery_{cpu}.png", (0, 0.04, 1, 1), w_pad=0.2)   # the panels close together
 
 
 for cpu, cpu_label in CPUS.items():
@@ -209,5 +223,6 @@ for cpu, cpu_label in CPUS.items():
              **{series: f"Dynamax (GPU: {gpu_label})" for series, gpu_label in zip(GPU_SERIES, GPUS.values())}}
     detail_figure(cpu, names, series_rows, *num_iters)
     total_figure(cpu, names, series_rows)
-    if {"ssm", "Dynamax"} <= set(series_rows):
-        recovery_figure(cpu, cpu_label, series_rows, *num_iters)
+    if cpu == RECOVERY_CPU:
+        recovery_summary_figure(cpu, names, series_rows)
+        recovery_figure(cpu, names, series_rows)
