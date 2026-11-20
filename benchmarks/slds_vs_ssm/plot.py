@@ -32,7 +32,7 @@ sys.path.insert(0, HERE)
 from make_data import SEQUENCE_LENGTH  # noqa: E402
 
 CPUS = {"epyc_7502": "AMD EPYC 7502", "epyc_8224p": "AMD EPYC 8224P"}     # --name of a run: its label; 8 cores each
-DPI = 150                                                 # of the pictures
+DPI = 1000                                                # of the pictures
 RECOVERY_CPU = "epyc_8224p"                               # the recovery figures are drawn for this CPU only
 GPUS = {"rtx_2080ti": "RTX 2080 Ti", "h200": "H200"}
 GPU_SERIES = [f"Dynamax on {label}" for label in GPUS.values()]
