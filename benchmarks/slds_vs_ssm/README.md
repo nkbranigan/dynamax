@@ -1,6 +1,6 @@
 We benchmark SLDS and rSLDS fitting in Dynamax against [`lindermanlab/ssm`](https://github.com/lindermanlab/ssm): speed, and recovery of the true states and parameters.
 
-To reproduce the results and the three plots, from the repository root, with each machine's name passed as `--name`:
+To reproduce the results and the plots, from the repository root, with each machine's name passed as `--name`:
 
 ```bash
 # environment with Dynamax and ssm (the same one as dynamax/slds/fixtures/README.md)
@@ -14,5 +14,5 @@ python benchmarks/slds_vs_ssm/make_data.py                               # sampl
 python benchmarks/slds_vs_ssm/bench_ssm.py --name epyc_7502              # writes cpu_epyc_7502_ssm_*.jsonl
 python benchmarks/slds_vs_ssm/bench_dynamax.py --name epyc_7502          # writes cpu_epyc_7502_dynamax_*.jsonl
 python benchmarks/slds_vs_ssm/bench_dynamax.py --device gpu --name h200  # on a machine with a GPU; writes gpu_h200_dynamax_*.jsonl
-python benchmarks/slds_vs_ssm/plot.py                                    # writes speed.png, speed_total.png and recovery.png
+python benchmarks/slds_vs_ssm/plot.py                                    # for each CPU, writes speed_*.png, speed_total_*.png, and recovery_*.png
 ```
