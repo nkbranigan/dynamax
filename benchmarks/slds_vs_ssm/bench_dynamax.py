@@ -6,7 +6,8 @@ file per model, such as cpu_dynamax_slds.jsonl or gpu_dynamax_rslds.jsonl, one J
 only that model's datasets are fitted, so the two models can run at the same time. initialize and fit_em are wrapped
 in an outer jax.jit and compiled ahead of time (jit(...).lower(...).compile(): tracing, lowering and XLA compilation,
 timed as *_compile_s); the executable is then run once (timed as *_s). Outside the timed region each fit is scored by
-the recovery test's own function.
+the recovery test's own function. A short fit runs before the timed ones, because on a cluster the first dynamax fit
+can pay a one-time setup price. JAX's caches are cleared before each timed fit, so each one compiles in full.
 """
 import argparse
 import json
@@ -47,6 +48,7 @@ def timed(fn):
 
 def bench(name, num_timesteps, num_iters=NUM_ITERS):
     """One row of results: the times of one fit and its recovery scores."""
+    jax.clear_caches()   # so the fit compiles in full each time
     saved = np.load(path(name, num_timesteps))
     emissions = jnp.asarray(saved[f"recovery/{name}/y"])
     model = MODELS[name]()
@@ -80,7 +82,10 @@ if __name__ == "__main__":
     names = [ARGS.model] if ARGS.model else list(SIZES)
     for name in names:
         open(results(name), "w").close()
-    for num_timesteps, name in sorted((T, name) for name in names for T in SIZES[name]):   # cheap fits first
+    grid = sorted((T, name) for name in names for T in SIZES[name])   # cheap fits first
+    num_timesteps, name = grid[0]
+    bench(name, num_timesteps, num_iters=2)                           # untimed: pays the node's one-time setup price
+    for num_timesteps, name in grid:
         try:
             row = bench(name, num_timesteps)
         except Exception as error:                        # such as running out of memory: go on to the next dataset
