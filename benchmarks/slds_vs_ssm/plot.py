@@ -75,15 +75,15 @@ def log_axes(ax, yscale="log"):
 
 
 def time_marks(axes):
-    """Faint lines at familiar lengths of time, named at the right of the last panel."""
+    """Dotted lines at familiar lengths of time, named at the right of the last panel."""
     low, high = axes[0].get_ylim()
     marks = {seconds: name for seconds, name in {60: "1 minute", 3600: "1 hour", 86400: "1 day"}.items()
              if low < seconds < high}
     for ax in axes:
         for seconds in marks:
-            ax.axhline(seconds, color="#b0aea8", lw=0.8, ls=":", zorder=0)
+            ax.axhline(seconds, color="black", lw=0.8, ls=":", zorder=0)
     right = axes[-1].secondary_yaxis("right")
-    right.set_yticks(list(marks), list(marks.values()), fontsize=8, color="#7a7873")
+    right.set_yticks(list(marks), list(marks.values()), fontsize=8, color="black")
     right.minorticks_off()
     right.tick_params(length=0)
     right.spines["right"].set_visible(False)
