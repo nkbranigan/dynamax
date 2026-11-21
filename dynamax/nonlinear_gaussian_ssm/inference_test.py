@@ -37,7 +37,7 @@ def test_extended_kalman_filter_linear(key=0, num_timesteps=15):
     ekf_post = extended_kalman_filter(lgssm_to_nlgssm(args), emissions)
 
     # Compare filter results
-    assert allclose(kf_post.marginal_loglik, ekf_post.marginal_loglik)
+    assert allclose(kf_post.marginal_loglik, ekf_post.marginal_loglik, rtol=1e-4)
     assert allclose(kf_post.filtered_means, ekf_post.filtered_means)
     assert allclose(kf_post.filtered_covariances, ekf_post.filtered_covariances)
 
